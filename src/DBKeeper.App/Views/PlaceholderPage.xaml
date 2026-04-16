@@ -1,0 +1,13 @@
+<Page x:Class="DBKeeper.App.Views.PlaceholderPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      Title="PlaceholderPage">
+    <Grid VerticalAlignment="Center" HorizontalAlignment="Center">
+        <StackPanel>
+            <ui:SymbolIcon Symbol="Wrench24" FontSize="48" Margin="0,0,0,16" HorizontalAlignment="Center" />
+            <TextBlock Text="页面开发中..." FontSize="20" HorizontalAlignment="Center"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+        </StackPanel>
+    </Grid>
+</Page>

@@ -1,0 +1,191 @@
+<ui:FluentWindow x:Class="DBKeeper.App.Dialogs.EditTaskDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        Title="新建任务" Height="620" Width="500"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        ExtendsContentIntoTitleBar="False">
+
+    <Grid TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- 可滚动表单区域 -->
+        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                      CanContentScroll="False"
+                      PreviewMouseWheel="ScrollViewer_PreviewMouseWheel">
+            <StackPanel Margin="20,12,20,12">
+                <!-- 基础信息 -->
+                <TextBlock Text="基础信息" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+                <TextBlock Text="任务名称" FontSize="13" Margin="0,0,0,4" />
+                <ui:TextBox x:Name="txtName" PlaceholderText="如：MES 每日备份" Margin="0,0,0,2" LostFocus="ValidateField_LostFocus" />
+                <TextBlock x:Name="errName" Foreground="{DynamicResource ErrorBrush}" FontSize="11" Margin="0,0,0,8" Visibility="Collapsed" />
+
+                <TextBlock Text="任务类型" FontSize="13" Margin="0,0,0,4" />
+                <ComboBox x:Name="cmbType" Margin="0,0,0,10" SelectionChanged="TaskType_Changed">
+                    <ComboBoxItem Content="备份数据库" Tag="BACKUP" IsSelected="True" />
+                    <ComboBoxItem Content="存储过程" Tag="PROCEDURE" />
+                    <ComboBoxItem Content="自定义 SQL" Tag="CUSTOM_SQL" />
+                    <ComboBoxItem Content="备份清理" Tag="BACKUP_CLEANUP" />
+                </ComboBox>
+
+                <TextBlock Text="绑定连接" FontSize="13" Margin="0,0,0,4" />
+                <ComboBox x:Name="cmbConnection" DisplayMemberPath="Name" Margin="0,0,0,10" />
+
+                <!-- 调度配置 -->
+                <TextBlock Text="调度配置" FontSize="14" FontWeight="SemiBold" Margin="0,8,0,8"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+                <TextBlock Text="周期类型" FontSize="13" Margin="0,0,0,4" />
+                <ComboBox x:Name="cmbSchedule" Margin="0,0,0,10" SelectionChanged="ScheduleType_Changed">
+                    <ComboBoxItem Content="每天" Tag="DAILY" IsSelected="True" />
+                    <ComboBoxItem Content="每周" Tag="WEEKLY" />
+                    <ComboBoxItem Content="每月" Tag="MONTHLY" />
+                    <ComboBoxItem Content="固定间隔" Tag="INTERVAL" />
+                    <ComboBoxItem Content="Cron 表达式" Tag="CRON" />
+                </ComboBox>
+
+                <StackPanel x:Name="panelTime">
+                    <TextBlock Text="执行时间 (HH:mm)" FontSize="13" Margin="0,0,0,4" />
+                    <ui:TextBox x:Name="txtTime" Text="02:00" Margin="0,0,0,10" />
+                </StackPanel>
+
+                <StackPanel x:Name="panelWeekDay" Visibility="Collapsed">
+                    <TextBlock Text="星期几" FontSize="13" Margin="0,0,0,4" />
+                    <ComboBox x:Name="cmbWeekDay" Margin="0,0,0,10">
+                        <ComboBoxItem Content="星期一" Tag="1" IsSelected="True" />
+                        <ComboBoxItem Content="星期二" Tag="2" />
+                        <ComboBoxItem Content="星期三" Tag="3" />
+                        <ComboBoxItem Content="星期四" Tag="4" />
+                        <ComboBoxItem Content="星期五" Tag="5" />
+                        <ComboBoxItem Content="星期六" Tag="6" />
+                        <ComboBoxItem Content="星期日" Tag="0" />
+                    </ComboBox>
+                </StackPanel>
+
+                <StackPanel x:Name="panelMonthDay" Visibility="Collapsed">
+                    <TextBlock Text="每月第几日" FontSize="13" Margin="0,0,0,4" />
+                    <ui:TextBox x:Name="txtMonthDay" Text="1" Margin="0,0,0,10" />
+                </StackPanel>
+
+                <StackPanel x:Name="panelInterval" Visibility="Collapsed">
+                    <TextBlock Text="间隔分钟" FontSize="13" Margin="0,0,0,4" />
+                    <ui:TextBox x:Name="txtInterval" Text="60" Margin="0,0,0,10" />
+                </StackPanel>
+
+                <StackPanel x:Name="panelCron" Visibility="Collapsed">
+                    <TextBlock Text="Cron 表达式" FontSize="13" Margin="0,0,0,4" />
+                    <ui:TextBox x:Name="txtCron" PlaceholderText="0 0 2 * * ?" Margin="0,0,0,10" />
+                </StackPanel>
+
+                <!-- 备份配置 -->
+                <StackPanel x:Name="panelBackup">
+                    <TextBlock Text="备份配置" FontSize="14" FontWeight="SemiBold" Margin="0,8,0,8"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Text="数据库名" FontSize="13" Margin="0,0,0,4" />
+                    <ComboBox x:Name="cmbDbName" IsEditable="True" Margin="0,0,0,2" LostFocus="ValidateField_LostFocus" />
+                    <TextBlock x:Name="errDbName" Foreground="{DynamicResource ErrorBrush}" FontSize="11" Margin="0,0,0,8" Visibility="Collapsed" />
+                    <TextBlock Text="备份类型" FontSize="13" Margin="0,0,0,4" />
+                    <ComboBox x:Name="cmbBackupType" Margin="0,0,0,10">
+                        <ComboBoxItem Content="全量备份" Tag="FULL" IsSelected="True" />
+                        <ComboBoxItem Content="差异备份" Tag="DIFF" />
+                        <ComboBoxItem Content="日志备份" Tag="LOG" />
+                    </ComboBox>
+                    <TextBlock Text="备份目录" FontSize="13" Margin="0,0,0,4" />
+                    <DockPanel Margin="0,0,0,2">
+                        <ui:Button Content="浏览" DockPanel.Dock="Right" Margin="8,0,0,0" Click="BrowseBackupDir_Click" />
+                        <ui:TextBox x:Name="txtBackupDir" PlaceholderText="D:\Backup\MES" LostFocus="ValidateField_LostFocus" />
+                    </DockPanel>
+                    <TextBlock x:Name="errBackupDir" Foreground="{DynamicResource ErrorBrush}" FontSize="11" Margin="0,0,0,8" Visibility="Collapsed" />
+                    <TextBlock Text="文件名规则" FontSize="13" Margin="0,0,0,4" />
+                    <ui:TextBox x:Name="txtFilePattern" Text="{}{DB}_{DATE}_{TIME}.bak" Margin="0,0,0,10" />
+                    <TextBlock Text="保留天数" FontSize="13" Margin="0,0,0,4" />
+                    <ui:TextBox x:Name="txtRetention" Text="30" Margin="0,0,0,10" />
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                        <CheckBox x:Name="chkCompress" Content="压缩备份" IsChecked="True" Margin="0,0,16,0" />
+                        <CheckBox x:Name="chkVerify" Content="完成后校验" />
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- 存储过程配置 -->
+                <StackPanel x:Name="panelProcedure" Visibility="Collapsed">
+                    <TextBlock Text="存储过程配置" FontSize="14" FontWeight="SemiBold" Margin="0,8,0,8"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Text="数据库名" FontSize="13" Margin="0,0,0,4" />
+                    <ComboBox x:Name="cmbSpDb" IsEditable="True" Margin="0,0,0,10" />
+                    <TextBlock Text="存储过程名称" FontSize="13" Margin="0,0,0,4" />
+                    <ui:TextBox x:Name="txtSpName" PlaceholderText="dbo.usp_DailyReport" Margin="0,0,0,10" />
+
+                    <!-- 参数列表 -->
+                    <TextBlock Text="参数列表" FontSize="13" Margin="0,0,0,4"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                        <ui:Button Content="添加参数" Click="AddParam_Click" FontSize="12" />
+                    </StackPanel>
+                    <ItemsControl x:Name="paramsList">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,0,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <ui:TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="参数名 @Date" />
+                                    <ui:TextBox Grid.Column="2" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="参数值" />
+                                    <ui:Button Grid.Column="3" Content="删除" Margin="4,0,0,0"
+                                               Click="RemoveParam_Click" Tag="{Binding}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+                <!-- 自定义SQL配置 -->
+                <StackPanel x:Name="panelSql" Visibility="Collapsed">
+                    <TextBlock Text="SQL 配置" FontSize="14" FontWeight="SemiBold" Margin="0,8,0,8"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Text="数据库名" FontSize="13" Margin="0,0,0,4" />
+                    <ComboBox x:Name="cmbSqlDb" IsEditable="True" Margin="0,0,0,10" />
+                    <TextBlock Text="SQL 内容" FontSize="13" Margin="0,0,0,4" />
+                    <TextBox x:Name="txtSqlContent" AcceptsReturn="True" TextWrapping="Wrap"
+                             Height="100" VerticalScrollBarVisibility="Auto" Margin="0,0,0,10" />
+                </StackPanel>
+
+                <!-- 清理配置 -->
+                <StackPanel x:Name="panelCleanup" Visibility="Collapsed">
+                    <TextBlock Text="清理配置" FontSize="14" FontWeight="SemiBold" Margin="0,8,0,8"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Text="目标目录" FontSize="13" Margin="0,0,0,4" />
+                    <DockPanel Margin="0,0,0,10">
+                        <ui:Button Content="浏览" DockPanel.Dock="Right" Margin="8,0,0,0" Click="BrowseCleanupDir_Click" />
+                        <ui:TextBox x:Name="txtCleanupDir" PlaceholderText="D:\Backup\MES" />
+                    </DockPanel>
+                    <TextBlock Text="保留天数" FontSize="13" Margin="0,0,0,4" />
+                    <ui:TextBox x:Name="txtCleanupRetention" Text="30" Margin="0,0,0,10" />
+                    <TextBlock Text="最少保留份数" FontSize="13" Margin="0,0,0,4" />
+                    <ui:TextBox x:Name="txtMinKeep" Text="3" Margin="0,0,0,10" />
+                </StackPanel>
+
+                <!-- 错误提示 -->
+                <TextBlock x:Name="errorText" Foreground="{DynamicResource ErrorBrush}" FontSize="12" Margin="0,4,0,0"
+                           TextWrapping="Wrap" Visibility="Collapsed" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- 底部按钮栏 - 固定 -->
+        <Border Grid.Row="1" Padding="20,12"
+                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0"
+                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <ui:Button Content="取消" Margin="0,0,8,0" Click="Cancel_Click" />
+                <ui:Button Content="保存" Appearance="Primary" Click="Save_Click" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</ui:FluentWindow>

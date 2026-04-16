@@ -1,0 +1,53 @@
+<ui:FluentWindow x:Class="DBKeeper.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        xmlns:views="clr-namespace:DBKeeper.App.Views"
+        Title="DB Keeper" Height="768" Width="1280"
+        MinHeight="600" MinWidth="900"
+        WindowStartupLocation="CenterScreen"
+        ExtendsContentIntoTitleBar="True"
+        WindowState="Maximized"
+        Icon="app.ico">
+
+    <ui:NavigationView x:Name="RootNavigation"
+                       PaneDisplayMode="Left"
+                       IsBackButtonVisible="Collapsed"
+                       Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+
+        <ui:NavigationView.Header>
+            <ui:TitleBar Title="DB Keeper" ShowMaximize="True" ShowMinimize="True" />
+        </ui:NavigationView.Header>
+
+        <ui:NavigationView.PaneHeader>
+            <Image Source="/Assets/logo_banner.png" Height="42"
+                   Margin="14,16,14,12" HorizontalAlignment="Left"
+                   RenderOptions.BitmapScalingMode="HighQuality" />
+        </ui:NavigationView.PaneHeader>
+
+        <ui:NavigationView.MenuItems>
+            <ui:NavigationViewItem Content="概览"
+                                   Icon="{ui:SymbolIcon Home24}"
+                                   TargetPageType="{x:Type views:DashboardPage}" />
+            <ui:NavigationViewItem Content="任务"
+                                   Icon="{ui:SymbolIcon Timer24}"
+                                   TargetPageType="{x:Type views:TaskListPage}" />
+            <ui:NavigationViewItem Content="备份"
+                                   Icon="{ui:SymbolIcon Database24}"
+                                   TargetPageType="{x:Type views:BackupFilesPage}" />
+            <ui:NavigationViewItem Content="日志"
+                                   Icon="{ui:SymbolIcon DocumentText24}"
+                                   TargetPageType="{x:Type views:ExecutionLogsPage}" />
+        </ui:NavigationView.MenuItems>
+
+        <ui:NavigationView.FooterMenuItems>
+            <ui:NavigationViewItem Content="连接"
+                                   Icon="{ui:SymbolIcon PlugConnected24}"
+                                   TargetPageType="{x:Type views:ConnectionsPage}" />
+            <ui:NavigationViewItem Content="设置"
+                                   Icon="{ui:SymbolIcon Settings24}"
+                                   TargetPageType="{x:Type views:SettingsPage}" />
+        </ui:NavigationView.FooterMenuItems>
+
+    </ui:NavigationView>
+</ui:FluentWindow>

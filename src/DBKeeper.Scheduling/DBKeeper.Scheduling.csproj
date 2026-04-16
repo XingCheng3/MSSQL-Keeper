@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\DBKeeper.Core\DBKeeper.Core.csproj" />
+    <ProjectReference Include="..\DBKeeper.Data\DBKeeper.Data.csproj" />
+    <ProjectReference Include="..\DBKeeper.Executors\DBKeeper.Executors.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Cronos: 仅 50KB 的 Cron 表达式解析库，替换 Quartz (~5MB + 25线程) -->
+    <PackageReference Include="Cronos" Version="0.8.4" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>
