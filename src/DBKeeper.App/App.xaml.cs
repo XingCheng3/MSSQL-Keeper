@@ -24,9 +24,11 @@ public partial class App : Application
             .AddJsonFile("appsettings.json", optional: false)
             .Build();
 
-        // Serilog：从 appsettings.json 读取配置
+        // Serilog：从 appsettings.json 读取配置（单文件发布需显式指定程序集）
+        var readerOptions = new Serilog.Settings.Configuration.ConfigurationReaderOptions(
+            typeof(Serilog.Sinks.File.FileSink).Assembly);
         Log.Logger = new LoggerConfiguration()
-            .ReadFrom.Configuration(config)
+            .ReadFrom.Configuration(config, readerOptions)
             .CreateLogger();
 
         Log.Information("DB Keeper 启动");
