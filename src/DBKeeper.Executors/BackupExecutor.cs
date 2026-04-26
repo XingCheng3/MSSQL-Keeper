@@ -27,6 +27,9 @@ public class BackupExecutor : ITaskExecutor
             .Replace("{DB}", dbName)
             .Replace("{DATE}", now.ToString("yyyyMMdd"))
             .Replace("{TIME}", now.ToString("HHmmss"));
+        fileName = SanitizeFileName(fileName);
+        if (string.IsNullOrWhiteSpace(fileName))
+            fileName = $"{SanitizeFileName(dbName)}_{now:yyyyMMdd_HHmmss}.bak";
         var filePath = System.IO.Path.Combine(backupDir, fileName);
 
         // 确保备份目录存在
@@ -69,5 +72,14 @@ public class BackupExecutor : ITaskExecutor
                 ["FileSizeBytes"] = fileInfo.Length
             }
         };
+    }
+
+    private static string SanitizeFileName(string fileName)
+    {
+        var invalidChars = Path.GetInvalidFileNameChars();
+        var sanitized = new string(fileName.Select(c => invalidChars.Contains(c) ? '_' : c).ToArray());
+        if (!string.Equals(fileName, sanitized, StringComparison.Ordinal))
+            Log.Warning("备份文件名包含非法字符，已自动替换: {Original} -> {Sanitized}", fileName, sanitized);
+        return sanitized;
     }
 }

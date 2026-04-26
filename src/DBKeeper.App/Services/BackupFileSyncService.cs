@@ -1,3 +1,4 @@
+using System.IO;
 using DBKeeper.Data.Repositories;
 using Serilog;
 
@@ -5,7 +6,7 @@ namespace DBKeeper.App.Services;
 
 /// <summary>
 /// 后台定时扫描备份目录，比对 backup_files 表与磁盘实际文件。
-/// 表中有但磁盘无 → 更新 status='DELETED'，并写入 execution_logs。
+/// 表中有但磁盘无 → 更新 status='DELETED'，有删除变更时写入 execution_logs。
 /// </summary>
 public class BackupFileSyncService
 {
@@ -125,7 +126,7 @@ public class BackupFileSyncService
             foreach (var file in allActive)
             {
                 // 跳过已在目录扫描中检查过的
-                if (directories.Any(d => file.FilePath.StartsWith(d, StringComparison.OrdinalIgnoreCase)))
+                if (directories.Any(d => IsPathUnderDirectory(file.FilePath, d)))
                     continue;
 
                 totalChecked++;
@@ -143,7 +144,7 @@ public class BackupFileSyncService
                 var startedAt = DateTime.Now.ToString("O");
                 logId = await _logRepo.InsertAsync(new Core.Models.ExecutionLog
                 {
-                    TaskId = 0,
+                    TaskId = null,
                     TaskName = "备份文件同步扫描",
                     TaskType = "SYSTEM",
                     TriggerType = "SYSTEM",
@@ -166,6 +167,22 @@ public class BackupFileSyncService
             }
 
             return new BackupFileSyncResult(0, 0, $"扫描失败: {ex.Message}");
+        }
+    }
+
+    private static bool IsPathUnderDirectory(string filePath, string directory)
+    {
+        try
+        {
+            var fullFilePath = Path.GetFullPath(filePath);
+            var fullDirectory = Path.GetFullPath(directory)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                + Path.DirectorySeparatorChar;
+            return fullFilePath.StartsWith(fullDirectory, StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
         }
     }
 }

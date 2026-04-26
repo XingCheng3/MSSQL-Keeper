@@ -3,7 +3,7 @@ namespace DBKeeper.Core.Models;
 public class ExecutionLog
 {
     public int Id { get; set; }
-    public int TaskId { get; set; }
+    public int? TaskId { get; set; }
     public string TaskName { get; set; } = string.Empty;
     public string TaskType { get; set; } = string.Empty;
     public string TriggerType { get; set; } = string.Empty;   // SCHEDULED / MANUAL / SYSTEM

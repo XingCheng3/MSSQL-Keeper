@@ -132,9 +132,7 @@ DBKeeper/
 
 ```json
 {
-  "AppSettings": {
-    "StartupPassword": "admin"
-  },
+  "AppPassword": "admin",
   "Serilog": {
     "WriteTo": [
       { "Name": "File", "Args": { "path": "logs/log-.txt", "rollingInterval": "Day" } }

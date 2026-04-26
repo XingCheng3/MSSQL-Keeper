@@ -39,8 +39,10 @@ public partial class TaskListViewModel : ObservableObject
         _allTasks.Clear();
         foreach (var t in tasks)
         {
-            connMap.TryGetValue(t.ConnectionId, out var connName);
-            _allTasks.Add(new TaskListItem(t, connName ?? "未知连接"));
+            var connName = t.ConnectionId.HasValue && connMap.TryGetValue(t.ConnectionId.Value, out var name)
+                ? name
+                : "未绑定连接";
+            _allTasks.Add(new TaskListItem(t, connName));
         }
 
         ApplyFilter();
@@ -113,7 +115,9 @@ public partial class TaskListViewModel : ObservableObject
         {
             task.Id = await _taskRepo.InsertAsync(task);
             var connections = await _connRepo.GetAllAsync();
-            var connName = connections.FirstOrDefault(c => c.Id == task.ConnectionId)?.Name ?? "";
+            var connName = task.ConnectionId.HasValue
+                ? connections.FirstOrDefault(c => c.Id == task.ConnectionId.Value)?.Name ?? ""
+                : "";
             var listItem = new TaskListItem(task, connName);
             _allTasks.Add(listItem);
             Tasks.Add(listItem);

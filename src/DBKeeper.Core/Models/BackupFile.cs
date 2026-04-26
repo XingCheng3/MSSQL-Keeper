@@ -3,7 +3,7 @@ namespace DBKeeper.Core.Models;
 public class BackupFile
 {
     public int Id { get; set; }
-    public int TaskId { get; set; }
+    public int? TaskId { get; set; }
     public string DatabaseName { get; set; } = string.Empty;
     public string FileName { get; set; } = string.Empty;
     public string FilePath { get; set; } = string.Empty;

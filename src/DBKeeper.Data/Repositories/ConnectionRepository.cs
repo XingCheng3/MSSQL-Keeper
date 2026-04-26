@@ -54,7 +54,7 @@ public class ConnectionRepository : IConnectionRepository
         await db.OpenAsync();
         using var tx = await db.BeginTransactionAsync();
         // 先解除 tasks 表的 FK 引用（保留任务但标记为无连接）
-        await db.ExecuteAsync("UPDATE tasks SET connection_id = 0 WHERE connection_id = @id", new { id }, tx);
+        await db.ExecuteAsync("UPDATE tasks SET connection_id = NULL WHERE connection_id = @id", new { id }, tx);
         await db.ExecuteAsync("DELETE FROM connections WHERE id = @id", new { id }, tx);
         await tx.CommitAsync();
     }

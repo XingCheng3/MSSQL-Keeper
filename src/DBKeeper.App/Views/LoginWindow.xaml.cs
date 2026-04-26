@@ -28,6 +28,12 @@ public partial class LoginWindow : Window
     {
         var config = App.Services.GetRequiredService<IConfiguration>();
         var correctPassword = config["AppPassword"];
+        if (string.IsNullOrEmpty(correctPassword))
+        {
+            correctPassword = config["AppSettings:StartupPassword"];
+            if (!string.IsNullOrEmpty(correctPassword))
+                Log.Warning("检测到旧配置键 AppSettings:StartupPassword，请迁移到 AppPassword");
+        }
         var input = passwordBox.Password;
 
         if (string.IsNullOrEmpty(correctPassword))

@@ -40,9 +40,25 @@ public class CleanupExecutor : ITaskExecutor
             .Where(f => f.CreationTime < cutoff)
             .ToList();
 
+        var pinnedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (_backupRepo != null)
+        {
+            var activeFiles = await _backupRepo.GetAllActiveAsync();
+            foreach (var file in activeFiles.Where(f => f.IsPinned))
+                pinnedPaths.Add(Path.GetFullPath(file.FilePath));
+        }
+
         var deletedPaths = new List<string>();
+        var skippedPinned = 0;
         foreach (var f in toDelete)
         {
+            if (pinnedPaths.Contains(Path.GetFullPath(f.FullName)))
+            {
+                skippedPinned++;
+                Log.Information("跳过置顶备份文件: {File}", f.FullName);
+                continue;
+            }
+
             deletedPaths.Add(f.FullName);
             f.Delete();
             Log.Information("清理备份文件: {File}", f.FullName);
@@ -66,7 +82,9 @@ public class CleanupExecutor : ITaskExecutor
         return new ExecutionResult
         {
             Success = true,
-            Summary = $"删除 {toDelete.Count} 个过期文件"
+            Summary = skippedPinned > 0
+                ? $"删除 {deletedPaths.Count} 个过期文件，跳过置顶 {skippedPinned} 个"
+                : $"删除 {deletedPaths.Count} 个过期文件"
         };
     }
 }

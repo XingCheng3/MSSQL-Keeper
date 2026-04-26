@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
@@ -51,7 +52,9 @@ public partial class EditTaskDialog : Wpf.Ui.Controls.FluentWindow
         // 选中连接
         if (cmbConnection.ItemsSource is List<Connection> connections)
         {
-            var idx = connections.FindIndex(c => c.Id == task.ConnectionId);
+            var idx = task.ConnectionId.HasValue
+                ? connections.FindIndex(c => c.Id == task.ConnectionId.Value)
+                : -1;
             if (idx >= 0) cmbConnection.SelectedIndex = idx;
         }
 
@@ -221,6 +224,7 @@ public partial class EditTaskDialog : Wpf.Ui.Controls.FluentWindow
             case "BACKUP":
                 if (string.IsNullOrWhiteSpace(cmbDbName.Text)) { ShowError("数据库名不能为空"); return null; }
                 if (string.IsNullOrWhiteSpace(txtBackupDir.Text)) { ShowError("备份目录不能为空"); return null; }
+                if (ContainsInvalidFileNameChar(txtFilePattern.Text)) { ShowError("文件名规则包含非法文件名字符"); return null; }
                 var backupType = cmbBackupType.SelectedItem is ComboBoxItem bt ? bt.Tag?.ToString() ?? "FULL" : "FULL";
                 return JsonSerializer.Serialize(new
                 {
@@ -263,6 +267,12 @@ public partial class EditTaskDialog : Wpf.Ui.Controls.FluentWindow
             default:
                 return "{}";
         }
+    }
+
+    private static bool ContainsInvalidFileNameChar(string fileNameTemplate)
+    {
+        if (string.IsNullOrWhiteSpace(fileNameTemplate)) return false;
+        return fileNameTemplate.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0;
     }
 
     private void ShowError(string msg)

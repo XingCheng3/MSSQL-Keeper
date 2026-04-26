@@ -8,6 +8,7 @@ using DBKeeper.Core.Models;
 using DBKeeper.Data;
 using DBKeeper.Data.Repositories;
 using DBKeeper.App.Converters;
+using DBKeeper.Scheduling;
 using Serilog;
 
 namespace DBKeeper.App.Views;
@@ -91,6 +92,8 @@ public partial class SettingsPage : Page
         if (!_loaded || cmbConcurrency.SelectedItem is not ComboBoxItem item) return;
         var val = item.Tag?.ToString() ?? "3";
         await _settings.SetAsync("max_concurrent_tasks", val);
+        if (int.TryParse(val, out var max))
+            App.Services.GetRequiredService<SchedulerService>().UpdateConcurrencyLimit(max);
         Log.Information("设置变更: max_concurrent_tasks = {Value}", val);
     }
 
@@ -186,7 +189,9 @@ public partial class SettingsPage : Page
                 {
                     t.Name,
                     t.TaskType,
-                    connection_name = connections.FirstOrDefault(c => c.Id == t.ConnectionId)?.Name ?? "",
+                    connection_name = t.ConnectionId.HasValue
+                        ? connections.FirstOrDefault(c => c.Id == t.ConnectionId.Value)?.Name ?? ""
+                        : "",
                     t.IsEnabled,
                     t.ScheduleType,
                     t.ScheduleConfig,

@@ -22,7 +22,8 @@ public class SchedulerService
 
     private Timer? _tickTimer;
     private readonly ConcurrentDictionary<int, ScheduledEntry> _entries = new();
-    private readonly SemaphoreSlim _concurrencyLock;
+    private readonly ConcurrentDictionary<int, byte> _runningTasks = new();
+    private SemaphoreSlim _concurrencyLock = new(3, 3);
     private volatile bool _running;
 
     public SchedulerService(
@@ -46,7 +47,6 @@ public class SchedulerService
             new CleanupExecutor(backupRepo)
         }.ToDictionary(e => e.TaskType);
 
-        _concurrencyLock = new SemaphoreSlim(3, 3); // 默认最大并发3
     }
 
     /// <summary>异步初始化</summary>
@@ -54,8 +54,15 @@ public class SchedulerService
     {
         var maxStr = await _settingsRepo.GetAsync("max_concurrent_tasks") ?? "3";
         var max = int.TryParse(maxStr, out var m) ? m : 3;
-        // SemaphoreSlim 只能初始化一次，已在构造函数中设定
+        UpdateConcurrencyLimit(max);
         Log.Information("调度引擎初始化，并发上限 {Max}", max);
+    }
+
+    public void UpdateConcurrencyLimit(int maxConcurrentTasks)
+    {
+        var max = Math.Clamp(maxConcurrentTasks, 1, 20);
+        _concurrencyLock = new SemaphoreSlim(max, max);
+        Log.Information("调度并发闸门已更新为 {Max}", max);
     }
 
     /// <summary>启动调度器并从数据库恢复所有启用的任务</summary>
@@ -113,7 +120,7 @@ public class SchedulerService
     {
         var task = await _taskRepo.GetByIdAsync(taskId);
         if (task == null) return;
-        await ExecuteTaskAsync(task, "MANUAL");
+        await ExecuteTaskWithGuardsAsync(task, "MANUAL");
     }
 
     /// <summary>暂停所有</summary>
@@ -139,31 +146,22 @@ public class SchedulerService
                 continue;
             }
 
+            var next = CalculateNextRun(task);
+            if (next.HasValue)
+            {
+                _entries[task.Id] = new ScheduledEntry { TaskId = task.Id, NextRunUtc = next.Value };
+                task.NextRunAt = next.Value.ToLocalTime().ToString("O");
+                await _taskRepo.UpdateLastRunAsync(task.Id, task.LastRunStatus ?? "", task.NextRunAt);
+            }
+            else
+            {
+                _entries.TryRemove(task.Id, out _);
+            }
+
             // 在后台执行，受信号量限制并发
             _ = Task.Run(async () =>
             {
-                await _concurrencyLock.WaitAsync();
-                try
-                {
-                    await ExecuteTaskAsync(task, "SCHEDULED");
-                }
-                finally
-                {
-                    _concurrencyLock.Release();
-                }
-
-                // 计算下次执行
-                var next = CalculateNextRun(task);
-                if (next.HasValue)
-                {
-                    _entries[task.Id] = new ScheduledEntry { TaskId = task.Id, NextRunUtc = next.Value };
-                    task.NextRunAt = next.Value.ToLocalTime().ToString("O");
-                    await _taskRepo.UpdateLastRunAsync(task.Id, task.LastRunStatus ?? "", task.NextRunAt);
-                }
-                else
-                {
-                    _entries.TryRemove(task.Id, out _);
-                }
+                await ExecuteTaskWithGuardsAsync(task, "SCHEDULED");
             });
         }
     }
@@ -236,10 +234,24 @@ public class SchedulerService
     /// <summary>核心执行逻辑</summary>
     public async Task ExecuteTaskAsync(TaskItem task, string triggerType)
     {
-        var conn = await _connRepo.GetByIdAsync(task.ConnectionId);
+        var conn = task.ConnectionId.HasValue
+            ? await _connRepo.GetByIdAsync(task.ConnectionId.Value)
+            : null;
         if (conn == null)
         {
             Log.Error("任务 {TaskName} 的连接不存在 (ID={ConnId})", task.Name, task.ConnectionId);
+            var startedAt = DateTime.Now.ToString("O");
+            var logId = await _logRepo.InsertAsync(new ExecutionLog
+            {
+                TaskId = task.Id,
+                TaskName = task.Name,
+                TaskType = task.TaskType,
+                TriggerType = triggerType,
+                StartedAt = startedAt,
+                Status = "RUNNING"
+            });
+            await _logRepo.UpdateFinishAsync(logId, "FAILED", 0, "任务关联的连接不存在，请重新绑定连接", null);
+            await _taskRepo.UpdateLastRunAsync(task.Id, "FAILED", task.NextRunAt);
             return;
         }
 
@@ -295,7 +307,29 @@ public class SchedulerService
     {
         var task = await _taskRepo.GetByIdAsync(taskId);
         if (task == null || !task.IsEnabled) return;
-        await ExecuteTaskAsync(task, "SCHEDULED");
+        await ExecuteTaskWithGuardsAsync(task, "SCHEDULED");
+    }
+
+    private async Task<bool> ExecuteTaskWithGuardsAsync(TaskItem task, string triggerType)
+    {
+        if (!_runningTasks.TryAdd(task.Id, 0))
+        {
+            Log.Warning("任务 {TaskName} 已在运行，跳过本次 {TriggerType} 触发", task.Name, triggerType);
+            return false;
+        }
+
+        var gate = _concurrencyLock;
+        await gate.WaitAsync();
+        try
+        {
+            await ExecuteTaskAsync(task, triggerType);
+            return true;
+        }
+        finally
+        {
+            gate.Release();
+            _runningTasks.TryRemove(task.Id, out _);
+        }
     }
 
     private async Task RecordBackupFileAsync(TaskItem task, string? actualFilePath)

@@ -61,9 +61,9 @@ public class SqlServerClient
     {
         var sql = backupType.ToUpper() switch
         {
-            "DIFF" => $"BACKUP DATABASE [{database}] TO DISK = @path WITH DIFFERENTIAL, FORMAT",
-            "LOG"  => $"BACKUP LOG [{database}] TO DISK = @path WITH FORMAT",
-            _      => $"BACKUP DATABASE [{database}] TO DISK = @path WITH FORMAT"
+            "DIFF" => $"BACKUP DATABASE [{database}] TO DISK = @path WITH DIFFERENTIAL, INIT",
+            "LOG"  => $"BACKUP LOG [{database}] TO DISK = @path WITH INIT",
+            _      => $"BACKUP DATABASE [{database}] TO DISK = @path WITH INIT"
         };
         if (useCompression && backupType.ToUpper() != "LOG") sql += ", COMPRESSION";
 

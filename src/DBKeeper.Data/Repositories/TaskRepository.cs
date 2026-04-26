@@ -60,8 +60,8 @@ public class TaskRepository : ITaskRepository
         await db.OpenAsync();
         using var tx = await db.BeginTransactionAsync();
         // 先解除子表的 FK 引用，保留备份记录和日志不丢失
-        await db.ExecuteAsync("UPDATE backup_files SET task_id = 0 WHERE task_id = @id", new { id }, tx);
-        await db.ExecuteAsync("UPDATE execution_logs SET task_id = 0 WHERE task_id = @id", new { id }, tx);
+        await db.ExecuteAsync("UPDATE backup_files SET task_id = NULL WHERE task_id = @id", new { id }, tx);
+        await db.ExecuteAsync("UPDATE execution_logs SET task_id = NULL WHERE task_id = @id", new { id }, tx);
         await db.ExecuteAsync("DELETE FROM tasks WHERE id = @id", new { id }, tx);
         await tx.CommitAsync();
     }

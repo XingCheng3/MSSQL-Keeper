@@ -17,7 +17,7 @@ public class DbInitializer
         _dbPath = dbPath ?? Path.Combine(dataDir, "dbkeeper.db");
     }
 
-    public string ConnectionString => $"Data Source={_dbPath};Foreign Keys=False";
+    public string ConnectionString => $"Data Source={_dbPath};Foreign Keys=True";
 
     /// <summary>
     /// 首次运行时初始化数据库
@@ -66,7 +66,7 @@ public class DbInitializer
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
                 name            TEXT    NOT NULL,
                 task_type       TEXT    NOT NULL,
-                connection_id   INTEGER NOT NULL,
+                connection_id   INTEGER,
                 is_enabled      INTEGER DEFAULT 1,
                 schedule_type   TEXT    NOT NULL,
                 schedule_config TEXT    NOT NULL,
@@ -76,14 +76,14 @@ public class DbInitializer
                 next_run_at     TEXT,
                 created_at      TEXT    NOT NULL,
                 updated_at      TEXT    NOT NULL,
-                FOREIGN KEY (connection_id) REFERENCES connections(id)
+                FOREIGN KEY (connection_id) REFERENCES connections(id) ON DELETE SET NULL
             );
             """);
 
         Execute(conn, """
             CREATE TABLE IF NOT EXISTS backup_files (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                task_id         INTEGER NOT NULL,
+                task_id         INTEGER,
                 database_name   TEXT    NOT NULL,
                 file_name       TEXT    NOT NULL,
                 file_path       TEXT    NOT NULL,
@@ -95,14 +95,14 @@ public class DbInitializer
                 is_verified     INTEGER DEFAULT 0,
                 status          TEXT    DEFAULT 'NORMAL',
                 deleted_at      TEXT,
-                FOREIGN KEY (task_id) REFERENCES tasks(id)
+                FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL
             );
             """);
 
         Execute(conn, """
             CREATE TABLE IF NOT EXISTS execution_logs (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                task_id         INTEGER NOT NULL,
+                task_id         INTEGER,
                 task_name       TEXT    NOT NULL,
                 task_type       TEXT    NOT NULL,
                 trigger_type    TEXT    NOT NULL,
@@ -112,7 +112,7 @@ public class DbInitializer
                 status          TEXT    NOT NULL,
                 summary         TEXT,
                 error_detail    TEXT,
-                FOREIGN KEY (task_id) REFERENCES tasks(id)
+                FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL
             );
             """);
 
@@ -136,6 +136,131 @@ public class DbInitializer
         {
             // 列已存在，忽略
         }
+
+        Execute(conn, "PRAGMA foreign_keys=OFF;");
+        try
+        {
+            if (ColumnIsNotNull(conn, "tasks", "connection_id"))
+                RebuildTasksTable(conn);
+            if (ColumnIsNotNull(conn, "backup_files", "task_id"))
+                RebuildBackupFilesTable(conn);
+            if (ColumnIsNotNull(conn, "execution_logs", "task_id"))
+                RebuildExecutionLogsTable(conn);
+
+            Execute(conn, "UPDATE tasks SET connection_id = NULL WHERE connection_id = 0;");
+            Execute(conn, "UPDATE backup_files SET task_id = NULL WHERE task_id = 0;");
+            Execute(conn, "UPDATE execution_logs SET task_id = NULL WHERE task_id = 0;");
+        }
+        finally
+        {
+            Execute(conn, "PRAGMA foreign_keys=ON;");
+        }
+    }
+
+    private static bool ColumnIsNotNull(SqliteConnection conn, string tableName, string columnName)
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"PRAGMA table_info({tableName});";
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            if (!string.Equals(reader.GetString(1), columnName, StringComparison.OrdinalIgnoreCase))
+                continue;
+            return reader.GetInt32(3) == 1;
+        }
+
+        return false;
+    }
+
+    private static void RebuildTasksTable(SqliteConnection conn)
+    {
+        Execute(conn, "ALTER TABLE tasks RENAME TO tasks_old;");
+        Execute(conn, """
+            CREATE TABLE tasks (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                name            TEXT    NOT NULL,
+                task_type       TEXT    NOT NULL,
+                connection_id   INTEGER,
+                is_enabled      INTEGER DEFAULT 1,
+                schedule_type   TEXT    NOT NULL,
+                schedule_config TEXT    NOT NULL,
+                task_config     TEXT    NOT NULL,
+                last_run_at     TEXT,
+                last_run_status TEXT,
+                next_run_at     TEXT,
+                created_at      TEXT    NOT NULL,
+                updated_at      TEXT    NOT NULL,
+                FOREIGN KEY (connection_id) REFERENCES connections(id) ON DELETE SET NULL
+            );
+            """);
+        Execute(conn, """
+            INSERT INTO tasks (id, name, task_type, connection_id, is_enabled, schedule_type, schedule_config, task_config,
+                               last_run_at, last_run_status, next_run_at, created_at, updated_at)
+            SELECT id, name, task_type, NULLIF(connection_id, 0), is_enabled, schedule_type, schedule_config, task_config,
+                   last_run_at, last_run_status, next_run_at, created_at, updated_at
+            FROM tasks_old;
+            """);
+        Execute(conn, "DROP TABLE tasks_old;");
+    }
+
+    private static void RebuildBackupFilesTable(SqliteConnection conn)
+    {
+        Execute(conn, "ALTER TABLE backup_files RENAME TO backup_files_old;");
+        Execute(conn, """
+            CREATE TABLE backup_files (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id         INTEGER,
+                database_name   TEXT    NOT NULL,
+                file_name       TEXT    NOT NULL,
+                file_path       TEXT    NOT NULL,
+                file_size_bytes INTEGER,
+                backup_type     TEXT,
+                created_at      TEXT    NOT NULL,
+                expires_at      TEXT,
+                is_pinned       INTEGER DEFAULT 0,
+                is_verified     INTEGER DEFAULT 0,
+                status          TEXT    DEFAULT 'NORMAL',
+                deleted_at      TEXT,
+                FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL
+            );
+            """);
+        Execute(conn, """
+            INSERT INTO backup_files (id, task_id, database_name, file_name, file_path, file_size_bytes, backup_type,
+                                      created_at, expires_at, is_pinned, is_verified, status, deleted_at)
+            SELECT id, NULLIF(task_id, 0), database_name, file_name, file_path, file_size_bytes, backup_type,
+                   created_at, expires_at, is_pinned, is_verified, status, deleted_at
+            FROM backup_files_old;
+            """);
+        Execute(conn, "DROP TABLE backup_files_old;");
+    }
+
+    private static void RebuildExecutionLogsTable(SqliteConnection conn)
+    {
+        Execute(conn, "ALTER TABLE execution_logs RENAME TO execution_logs_old;");
+        Execute(conn, """
+            CREATE TABLE execution_logs (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id         INTEGER,
+                task_name       TEXT    NOT NULL,
+                task_type       TEXT    NOT NULL,
+                trigger_type    TEXT    NOT NULL,
+                started_at      TEXT    NOT NULL,
+                finished_at     TEXT,
+                duration_ms     INTEGER,
+                status          TEXT    NOT NULL,
+                summary         TEXT,
+                error_detail    TEXT,
+                FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL
+            );
+            """);
+        Execute(conn, """
+            INSERT INTO execution_logs (id, task_id, task_name, task_type, trigger_type, started_at, finished_at,
+                                        duration_ms, status, summary, error_detail)
+            SELECT id, NULLIF(task_id, 0), task_name, task_type, trigger_type, started_at, finished_at,
+                   duration_ms, status, summary, error_detail
+            FROM execution_logs_old;
+            """);
+        Execute(conn, "DROP TABLE execution_logs_old;");
     }
 
     private void CreateIndexes(SqliteConnection conn)
