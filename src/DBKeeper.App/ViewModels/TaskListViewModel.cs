@@ -57,6 +57,10 @@ public partial class TaskListViewModel : ObservableObject
         if (!string.IsNullOrEmpty(FilterType))
             filtered = filtered.Where(t => t.Model.TaskType == FilterType);
 
+        // 按执行状态过滤
+        if (!string.IsNullOrEmpty(FilterStatus))
+            filtered = filtered.Where(t => string.Equals(t.LastRunStatus, FilterStatus, StringComparison.OrdinalIgnoreCase));
+
         // 按搜索关键字过滤
         if (!string.IsNullOrWhiteSpace(SearchText))
         {
@@ -112,24 +116,15 @@ public partial class TaskListViewModel : ObservableObject
     public async Task SaveTaskAsync(TaskItem task, bool isNew)
     {
         if (isNew)
-        {
             task.Id = await _taskRepo.InsertAsync(task);
-            var connections = await _connRepo.GetAllAsync();
-            var connName = task.ConnectionId.HasValue
-                ? connections.FirstOrDefault(c => c.Id == task.ConnectionId.Value)?.Name ?? ""
-                : "";
-            var listItem = new TaskListItem(task, connName);
-            _allTasks.Add(listItem);
-            Tasks.Add(listItem);
-        }
         else
-        {
             await _taskRepo.UpdateAsync(task);
-        }
+
         // 更新调度
         if (task.IsEnabled)
             await _scheduler.ScheduleTaskAsync(task);
 
+        await LoadAsync();
         Log.Information("{Action}任务: {Name}", isNew ? "新建" : "更新", task.Name);
     }
 }

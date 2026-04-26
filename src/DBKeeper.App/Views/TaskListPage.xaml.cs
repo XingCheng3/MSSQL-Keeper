@@ -95,8 +95,8 @@ public partial class TaskListPage : Page
     private void Filter_Changed(object sender, SelectionChangedEventArgs e)
     {
         if (_vm == null) return;
-        var selected = cmbType.SelectedItem as ComboBoxItem;
-        _vm.FilterType = selected?.Tag?.ToString();
+        _vm.FilterType = (cmbType.SelectedItem as ComboBoxItem)?.Tag?.ToString();
+        _vm.FilterStatus = (cmbStatus.SelectedItem as ComboBoxItem)?.Tag?.ToString();
         _vm.ApplyFilter();
         UpdateEmptyState();
     }

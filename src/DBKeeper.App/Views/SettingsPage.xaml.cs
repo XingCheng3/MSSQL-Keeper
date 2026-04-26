@@ -8,6 +8,7 @@ using DBKeeper.Core.Models;
 using DBKeeper.Data;
 using DBKeeper.Data.Repositories;
 using DBKeeper.App.Converters;
+using DBKeeper.App.Services;
 using DBKeeper.Scheduling;
 using Serilog;
 
@@ -102,6 +103,8 @@ public partial class SettingsPage : Page
         if (!_loaded || cmbScanInterval.SelectedItem is not ComboBoxItem item) return;
         var val = item.Tag?.ToString() ?? "30";
         await _settings.SetAsync("backup_scan_interval_min", val);
+        if (int.TryParse(val, out var minutes))
+            App.Services.GetRequiredService<BackupFileSyncService>().Restart(minutes);
         Log.Information("设置变更: backup_scan_interval_min = {Value}", val);
     }
 

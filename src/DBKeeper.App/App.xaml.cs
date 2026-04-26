@@ -76,13 +76,15 @@ public partial class App : Application
         // 启动心跳检测
         var heartbeat = Services.GetRequiredService<ConnectionHeartbeatService>();
         var settingsRepo = Services.GetRequiredService<ISettingsRepository>();
-        var heartbeatIntervalStr = settingsRepo.GetAsync("heartbeat_interval_sec").GetAwaiter().GetResult() ?? "60";
+        var heartbeatIntervalStr = await settingsRepo.GetAsync("heartbeat_interval_sec") ?? "60";
         var heartbeatInterval = int.TryParse(heartbeatIntervalStr, out var hbSec) ? hbSec : 60;
         heartbeat.Start(heartbeatInterval);
 
         // 启动备份文件同步扫描
         var backupSync = Services.GetRequiredService<BackupFileSyncService>();
-        backupSync.Start();
+        var scanIntervalStr = await settingsRepo.GetAsync("backup_scan_interval_min") ?? "30";
+        var scanInterval = int.TryParse(scanIntervalStr, out var scanMin) ? scanMin : 30;
+        backupSync.Start(scanInterval);
 
         // 启动时清理过期日志
         _ = CleanupOnStartAsync()

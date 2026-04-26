@@ -28,6 +28,14 @@
                 <ComboBoxItem Content="自定义SQL" Tag="CUSTOM_SQL" />
                 <ComboBoxItem Content="备份清理" Tag="BACKUP_CLEANUP" />
             </ComboBox>
+            <ComboBox x:Name="cmbStatus" Width="120" Margin="0,0,8,0" SelectionChanged="Filter_Changed"
+                      MaxDropDownHeight="220" ScrollViewer.VerticalScrollBarVisibility="Auto">
+                <ComboBoxItem Content="全部状态" IsSelected="True" />
+                <ComboBoxItem Content="执行中" Tag="RUNNING" />
+                <ComboBoxItem Content="成功" Tag="SUCCESS" />
+                <ComboBoxItem Content="警告" Tag="WARNING" />
+                <ComboBoxItem Content="失败" Tag="FAILED" />
+            </ComboBox>
             <ui:TextBox x:Name="txtSearch" PlaceholderText="搜索任务..." Width="200"
                         TextChanged="Search_Changed" />
         </StackPanel>

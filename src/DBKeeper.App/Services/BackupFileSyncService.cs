@@ -12,7 +12,6 @@ public class BackupFileSyncService
 {
     private readonly IBackupFileRepository _backupRepo;
     private readonly IExecutionLogRepository _logRepo;
-    private readonly ISettingsRepository _settingsRepo;
     private readonly ITaskRepository _taskRepo;
     private readonly SemaphoreSlim _scanLock = new(1, 1);
     private Timer? _timer;
@@ -20,18 +19,16 @@ public class BackupFileSyncService
     public BackupFileSyncService(
         IBackupFileRepository backupRepo,
         IExecutionLogRepository logRepo,
-        ISettingsRepository settingsRepo,
         ITaskRepository taskRepo)
     {
         _backupRepo = backupRepo;
         _logRepo = logRepo;
-        _settingsRepo = settingsRepo;
         _taskRepo = taskRepo;
     }
 
-    public void Start()
+    public void Start(int? intervalMinutes = null)
     {
-        var intervalMin = GetScanIntervalMin();
+        var intervalMin = Math.Clamp(intervalMinutes ?? 30, 1, 1440);
         _timer = new Timer(_ => _ = ScanNowAsync(), null,
             TimeSpan.FromMinutes(intervalMin),
             TimeSpan.FromMinutes(intervalMin));
@@ -44,11 +41,10 @@ public class BackupFileSyncService
         _timer = null;
     }
 
-    /// <summary>从 settings 表读取扫描间隔（分钟），默认 30</summary>
-    private int GetScanIntervalMin()
+    public void Restart(int intervalMinutes)
     {
-        var val = _settingsRepo.GetAsync("backup_scan_interval_min").GetAwaiter().GetResult();
-        return int.TryParse(val, out var min) ? min : 30;
+        Stop();
+        Start(intervalMinutes);
     }
 
     public async Task<BackupFileSyncResult> ScanNowAsync()

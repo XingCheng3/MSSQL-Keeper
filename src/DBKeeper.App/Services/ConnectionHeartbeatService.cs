@@ -12,6 +12,7 @@ public class ConnectionHeartbeatService
 {
     private readonly IConnectionRepository _repo;
     private readonly ConcurrentDictionary<int, bool> _statusByConnectionId = new();
+    private readonly SemaphoreSlim _checkLock = new(1, 1);
     private Timer? _timer;
 
     /// <summary>连接状态变化事件：key=连接ID, value=是否在线</summary>
@@ -45,6 +46,12 @@ public class ConnectionHeartbeatService
 
     public async Task CheckAllAsync()
     {
+        if (!await _checkLock.WaitAsync(0))
+        {
+            Log.Debug("上一次心跳检测仍在执行，跳过本轮");
+            return;
+        }
+
         try
         {
             var connections = await _repo.GetAllAsync();
@@ -58,6 +65,10 @@ public class ConnectionHeartbeatService
         catch (Exception ex)
         {
             Log.Error(ex, "心跳检测异常");
+        }
+        finally
+        {
+            _checkLock.Release();
         }
     }
 }

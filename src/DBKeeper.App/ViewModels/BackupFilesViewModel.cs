@@ -47,7 +47,7 @@ public partial class BackupFilesViewModel : ObservableObject
         }
 
         // 大小异常检测
-        DetectSizeAnomalies();
+        await DetectSizeAnomaliesAsync();
     }
 
     [RelayCommand]
@@ -61,8 +61,9 @@ public partial class BackupFilesViewModel : ObservableObject
     /// <summary>
     /// 检测大小异常：同一任务的连续备份文件，当前文件比上一份小50%以上则标记 SIZE_ANOMALY
     /// </summary>
-    private void DetectSizeAnomalies()
+    private async Task DetectSizeAnomaliesAsync()
     {
+        var updates = new List<BackupFile>();
         var groups = Files
             .Where(f => f.Status is "NORMAL" or "SIZE_ANOMALY")
             .GroupBy(f => f.TaskId);
@@ -85,11 +86,23 @@ public partial class BackupFilesViewModel : ObservableObject
                     if (curr.Status != "SIZE_ANOMALY")
                     {
                         curr.Status = "SIZE_ANOMALY";
-                        _ = _repo.UpdateStatusAsync(curr.Id, "SIZE_ANOMALY");
+                        updates.Add(curr);
                         Log.Warning("备份文件大小异常: {FileName} ({Size}) < 上一份 {PrevFileName} ({PrevSize}) 的50%",
                             curr.FileName, curr.FileSizeBytes, prev.FileName, prev.FileSizeBytes);
                     }
                 }
+            }
+        }
+
+        foreach (var file in updates)
+        {
+            try
+            {
+                await _repo.UpdateStatusAsync(file.Id, "SIZE_ANOMALY");
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "备份文件大小异常状态写回失败: {FileName}", file.FileName);
             }
         }
     }

@@ -23,6 +23,7 @@ public class SchedulerService
     private Timer? _tickTimer;
     private readonly ConcurrentDictionary<int, ScheduledEntry> _entries = new();
     private readonly ConcurrentDictionary<int, byte> _runningTasks = new();
+    private readonly SemaphoreSlim _tickLock = new(1, 1);
     private SemaphoreSlim _concurrencyLock = new(3, 3);
     private volatile bool _running;
 
@@ -133,36 +134,48 @@ public class SchedulerService
     private async Task TickAsync()
     {
         if (!_running) return;
-
-        var now = DateTimeOffset.UtcNow;
-        var dueEntries = _entries.Values.Where(e => e.NextRunUtc <= now).ToList();
-
-        foreach (var entry in dueEntries)
+        if (!await _tickLock.WaitAsync(0))
         {
-            var task = await _taskRepo.GetByIdAsync(entry.TaskId);
-            if (task == null || !task.IsEnabled)
-            {
-                _entries.TryRemove(entry.TaskId, out _);
-                continue;
-            }
+            Log.Debug("上一次调度 tick 仍在执行，跳过本轮");
+            return;
+        }
 
-            var next = CalculateNextRun(task);
-            if (next.HasValue)
-            {
-                _entries[task.Id] = new ScheduledEntry { TaskId = task.Id, NextRunUtc = next.Value };
-                task.NextRunAt = next.Value.ToLocalTime().ToString("O");
-                await _taskRepo.UpdateLastRunAsync(task.Id, task.LastRunStatus ?? "", task.NextRunAt);
-            }
-            else
-            {
-                _entries.TryRemove(task.Id, out _);
-            }
+        try
+        {
+            var now = DateTimeOffset.UtcNow;
+            var dueEntries = _entries.Values.Where(e => e.NextRunUtc <= now).ToList();
 
-            // 在后台执行，受信号量限制并发
-            _ = Task.Run(async () =>
+            foreach (var entry in dueEntries)
             {
-                await ExecuteTaskWithGuardsAsync(task, "SCHEDULED");
-            });
+                var task = await _taskRepo.GetByIdAsync(entry.TaskId);
+                if (task == null || !task.IsEnabled)
+                {
+                    _entries.TryRemove(entry.TaskId, out _);
+                    continue;
+                }
+
+                var next = CalculateNextRun(task);
+                if (next.HasValue)
+                {
+                    _entries[task.Id] = new ScheduledEntry { TaskId = task.Id, NextRunUtc = next.Value };
+                    task.NextRunAt = next.Value.ToLocalTime().ToString("O");
+                    await _taskRepo.UpdateLastRunAsync(task.Id, task.LastRunStatus ?? "", task.NextRunAt);
+                }
+                else
+                {
+                    _entries.TryRemove(task.Id, out _);
+                }
+
+                // 在后台执行，受信号量限制并发
+                _ = Task.Run(async () =>
+                {
+                    await ExecuteTaskWithGuardsAsync(task, "SCHEDULED");
+                });
+            }
+        }
+        finally
+        {
+            _tickLock.Release();
         }
     }
 
