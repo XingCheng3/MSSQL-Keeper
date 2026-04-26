@@ -22,7 +22,7 @@ public class SchedulerService
 
     private Timer? _tickTimer;
     private readonly ConcurrentDictionary<int, ScheduledEntry> _entries = new();
-    private readonly ConcurrentDictionary<int, byte> _runningTasks = new();
+    private readonly ConcurrentDictionary<int, RunningTaskState> _runningTasks = new();
     private readonly SemaphoreSlim _tickLock = new(1, 1);
     private SemaphoreSlim _concurrencyLock = new(3, 3);
     private volatile bool _running;
@@ -82,6 +82,8 @@ public class SchedulerService
     public Task StopAsync()
     {
         _running = false;
+        foreach (var state in _runningTasks.Values)
+            state.CancelByUser();
         _tickTimer?.Dispose();
         _tickTimer = null;
         _entries.Clear();
@@ -122,6 +124,17 @@ public class SchedulerService
         var task = await _taskRepo.GetByIdAsync(taskId);
         if (task == null) return;
         await ExecuteTaskWithGuardsAsync(task, "MANUAL");
+    }
+
+    /// <summary>取消正在运行或等待并发闸门的任务</summary>
+    public Task<bool> CancelTaskAsync(int taskId)
+    {
+        if (!_runningTasks.TryGetValue(taskId, out var state))
+            return Task.FromResult(false);
+
+        state.CancelByUser();
+        Log.Information("已请求取消任务: {TaskId}", taskId);
+        return Task.FromResult(true);
     }
 
     /// <summary>暂停所有</summary>
@@ -245,7 +258,7 @@ public class SchedulerService
     }
 
     /// <summary>核心执行逻辑</summary>
-    public async Task ExecuteTaskAsync(TaskItem task, string triggerType)
+    public async Task ExecuteTaskAsync(TaskItem task, string triggerType, RunningTaskState state)
     {
         var conn = task.ConnectionId.HasValue
             ? await _connRepo.GetByIdAsync(task.ConnectionId.Value)
@@ -286,7 +299,10 @@ public class SchedulerService
             if (!_executors.TryGetValue(task.TaskType, out var executor))
                 throw new InvalidOperationException($"未知任务类型: {task.TaskType}");
 
-            var result = await executor.ExecuteAsync(task, conn).WaitAsync(TimeSpan.FromMinutes(30));
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(state.Token);
+            timeoutCts.CancelAfter(TimeSpan.FromMinutes(30));
+
+            var result = await executor.ExecuteAsync(task, conn, timeoutCts.Token);
             sw.Stop();
 
             string status;
@@ -305,6 +321,15 @@ public class SchedulerService
                 var actualFilePath = result.Metadata?.GetValueOrDefault("FilePath") as string;
                 await RecordBackupFileAsync(task, actualFilePath);
             }
+        }
+        catch (OperationCanceledException ex)
+        {
+            sw.Stop();
+            var status = state.IsUserCancellationRequested ? "CANCELLED" : "FAILED";
+            var summary = state.IsUserCancellationRequested ? "任务已取消" : "任务执行超时";
+            Log.Warning(ex, "任务 {TaskName} {Status}", task.Name, summary);
+            await _logRepo.UpdateFinishAsync(log.Id, status, (int)sw.ElapsedMilliseconds, summary, null);
+            await _taskRepo.UpdateLastRunAsync(task.Id, status, task.NextRunAt);
         }
         catch (Exception ex)
         {
@@ -325,24 +350,50 @@ public class SchedulerService
 
     private async Task<bool> ExecuteTaskWithGuardsAsync(TaskItem task, string triggerType)
     {
-        if (!_runningTasks.TryAdd(task.Id, 0))
+        var state = new RunningTaskState();
+        if (!_runningTasks.TryAdd(task.Id, state))
         {
+            state.Dispose();
             Log.Warning("任务 {TaskName} 已在运行，跳过本次 {TriggerType} 触发", task.Name, triggerType);
             return false;
         }
 
         var gate = _concurrencyLock;
-        await gate.WaitAsync();
         try
         {
-            await ExecuteTaskAsync(task, triggerType);
+            await gate.WaitAsync(state.Token);
+            state.HasEnteredGate = true;
+            await ExecuteTaskAsync(task, triggerType, state);
+            return true;
+        }
+        catch (OperationCanceledException) when (state.IsUserCancellationRequested)
+        {
+            await RecordCancelledBeforeStartAsync(task, triggerType);
             return true;
         }
         finally
         {
-            gate.Release();
+            if (state.HasEnteredGate)
+                gate.Release();
             _runningTasks.TryRemove(task.Id, out _);
+            state.Dispose();
         }
+    }
+
+    private async Task RecordCancelledBeforeStartAsync(TaskItem task, string triggerType)
+    {
+        var startedAt = DateTime.Now.ToString("O");
+        var logId = await _logRepo.InsertAsync(new ExecutionLog
+        {
+            TaskId = task.Id,
+            TaskName = task.Name,
+            TaskType = task.TaskType,
+            TriggerType = triggerType,
+            StartedAt = startedAt,
+            Status = "RUNNING"
+        });
+        await _logRepo.UpdateFinishAsync(logId, "CANCELLED", 0, "任务在等待执行时已取消", null);
+        await _taskRepo.UpdateLastRunAsync(task.Id, "CANCELLED", task.NextRunAt);
     }
 
     private async Task RecordBackupFileAsync(TaskItem task, string? actualFilePath)
@@ -389,5 +440,22 @@ public class SchedulerService
     {
         public int TaskId { get; init; }
         public DateTimeOffset NextRunUtc { get; init; }
+    }
+
+    public sealed class RunningTaskState : IDisposable
+    {
+        private readonly CancellationTokenSource _cts = new();
+
+        public CancellationToken Token => _cts.Token;
+        public bool IsUserCancellationRequested { get; private set; }
+        public bool HasEnteredGate { get; set; }
+
+        public void CancelByUser()
+        {
+            IsUserCancellationRequested = true;
+            _cts.Cancel();
+        }
+
+        public void Dispose() => _cts.Dispose();
     }
 }

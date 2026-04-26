@@ -21,7 +21,7 @@ public class CleanupExecutor : ITaskExecutor
         _backupRepo = backupRepo;
     }
 
-    public async Task<ExecutionResult> ExecuteAsync(TaskItem task, Connection connection)
+    public async Task<ExecutionResult> ExecuteAsync(TaskItem task, Connection connection, CancellationToken cancellationToken = default)
     {
         var config = JsonSerializer.Deserialize<CleanupConfig>(task.TaskConfig)!;
         var dir = config.TargetDir;
@@ -52,6 +52,7 @@ public class CleanupExecutor : ITaskExecutor
         var skippedPinned = 0;
         foreach (var f in toDelete)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (pinnedPaths.Contains(Path.GetFullPath(f.FullName)))
             {
                 skippedPinned++;

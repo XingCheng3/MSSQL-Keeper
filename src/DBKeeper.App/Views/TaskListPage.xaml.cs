@@ -72,6 +72,12 @@ public partial class TaskListPage : Page
         }
     }
 
+    private async void CancelTask_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: TaskListItem item }) return;
+        await _vm.CancelTaskCommand.ExecuteAsync(item);
+    }
+
     private async void ToggleEnabled_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not FrameworkElement { Tag: TaskListItem item }) return;

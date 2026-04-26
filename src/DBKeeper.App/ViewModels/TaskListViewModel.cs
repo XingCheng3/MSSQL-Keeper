@@ -97,10 +97,23 @@ public partial class TaskListViewModel : ObservableObject
         if (item.IsRunning) return;
 
         item.IsRunning = true;
+        item.IsCancelling = false;
         item.LastRunStatus = "RUNNING";
         await _scheduler.TriggerNowAsync(item.Model.Id);
         Log.Information("手动触发任务: {Name}", item.Model.Name);
         await LoadAsync(); // 刷新状态
+    }
+
+    [RelayCommand]
+    private async Task CancelTaskAsync(TaskListItem item)
+    {
+        if (!item.IsRunning || item.IsCancelling) return;
+
+        var requested = await _scheduler.CancelTaskAsync(item.Model.Id);
+        if (!requested) return;
+
+        item.IsCancelling = true;
+        Log.Information("请求取消任务: {Name}", item.Model.Name);
     }
 
     [RelayCommand]
@@ -140,17 +153,26 @@ public partial class TaskListItem : ObservableObject
         ConnectionName = connectionName;
         _isEnabled = model.IsEnabled;
         _lastRunStatus = model.LastRunStatus;
+        _isRunning = model.LastRunStatus == "RUNNING";
     }
 
     [ObservableProperty] private bool _isEnabled;
     [ObservableProperty] private bool _isRunning;
+    [ObservableProperty] private bool _isCancelling;
     [ObservableProperty] private string? _lastRunStatus;
 
-    public string StatusDisplay => IsRunning || LastRunStatus == "RUNNING"
+    public string StatusDisplay => IsCancelling
+        ? "取消中..."
+        : IsRunning || LastRunStatus == "RUNNING"
         ? "执行中..."
         : LastRunStatus ?? "—";
 
     partial void OnIsRunningChanged(bool value)
+    {
+        OnPropertyChanged(nameof(StatusDisplay));
+    }
+
+    partial void OnIsCancellingChanged(bool value)
     {
         OnPropertyChanged(nameof(StatusDisplay));
     }

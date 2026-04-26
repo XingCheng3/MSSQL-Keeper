@@ -15,7 +15,7 @@ public class BackupExecutor : ITaskExecutor
 
     public string TaskType => "BACKUP";
 
-    public async Task<ExecutionResult> ExecuteAsync(TaskItem task, Connection connection)
+    public async Task<ExecutionResult> ExecuteAsync(TaskItem task, Connection connection, CancellationToken cancellationToken = default)
     {
         var config = JsonSerializer.Deserialize<BackupConfig>(task.TaskConfig)!;
         var dbName = config.DatabaseName;
@@ -31,13 +31,14 @@ public class BackupExecutor : ITaskExecutor
         if (string.IsNullOrWhiteSpace(fileName))
             fileName = $"{SanitizeFileName(dbName)}_{now:yyyyMMdd_HHmmss}.bak";
         var filePath = System.IO.Path.Combine(backupDir, fileName);
+        cancellationToken.ThrowIfCancellationRequested();
 
         // 确保备份目录存在
         Directory.CreateDirectory(backupDir);
 
         // 磁盘空间预检
         var driveInfo = new DriveInfo(System.IO.Path.GetPathRoot(filePath)!);
-        var dbSizeMb = await SqlServerClient.GetDatabaseSizeMbAsync(connection, dbName);
+        var dbSizeMb = await SqlServerClient.GetDatabaseSizeMbAsync(connection, dbName, cancellationToken);
         var requiredMb = (long)(dbSizeMb * RequiredSpaceMultiplier);
 
         if (driveInfo.AvailableFreeSpace / (1024 * 1024) < requiredMb)
@@ -50,11 +51,19 @@ public class BackupExecutor : ITaskExecutor
 
         // 执行备份
         var timeoutSec = config.TimeoutSec > 0 ? config.TimeoutSec : 600;
-        await SqlServerClient.ExecuteBackupAsync(connection, dbName, filePath, config.UseCompression, timeoutSec, config.BackupType);
+        try
+        {
+            await SqlServerClient.ExecuteBackupAsync(connection, dbName, filePath, config.UseCompression, timeoutSec, config.BackupType, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            TryDeletePartialBackup(filePath);
+            throw;
+        }
 
         // 校验
         if (config.VerifyAfterBackup)
-            await SqlServerClient.ExecuteVerifyAsync(connection, filePath);
+            await SqlServerClient.ExecuteVerifyAsync(connection, filePath, cancellationToken: cancellationToken);
 
         // 获取文件大小
         var fileInfo = new FileInfo(filePath);
@@ -72,6 +81,19 @@ public class BackupExecutor : ITaskExecutor
                 ["FileSizeBytes"] = fileInfo.Length
             }
         };
+    }
+
+    private static void TryDeletePartialBackup(string filePath)
+    {
+        try
+        {
+            if (File.Exists(filePath))
+                File.Delete(filePath);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "取消备份后删除未完成文件失败: {FilePath}", filePath);
+        }
     }
 
     private static string SanitizeFileName(string fileName)

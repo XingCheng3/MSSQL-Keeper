@@ -57,7 +57,7 @@ public class SqlServerClient
 
     /// <summary>执行 BACKUP DATABASE/LOG 命令</summary>
     public static async Task ExecuteBackupAsync(Connection conn, string database, string backupPath,
-        bool useCompression, int timeoutSec = 600, string backupType = "FULL")
+        bool useCompression, int timeoutSec = 600, string backupType = "FULL", CancellationToken cancellationToken = default)
     {
         var sql = backupType.ToUpper() switch
         {
@@ -68,32 +68,42 @@ public class SqlServerClient
         if (useCompression && backupType.ToUpper() != "LOG") sql += ", COMPRESSION";
 
         await using var sqlConn = new SqlConnection(BuildConnectionString(conn, "master"));
-        await sqlConn.OpenAsync();
+        await sqlConn.OpenAsync(cancellationToken);
         await using var cmd = new SqlCommand(sql, sqlConn) { CommandTimeout = timeoutSec };
         cmd.Parameters.AddWithValue("@path", backupPath);
+        using var cancelRegistration = cancellationToken.Register(() =>
+        {
+            try { cmd.Cancel(); }
+            catch { /* 取消时连接可能已释放 */ }
+        });
 
         // BACKUP 通过 InfoMessage 报告进度
         sqlConn.InfoMessage += (_, e) => Log.Debug("SQL Server 备份消息: {Message}", e.Message);
-        await cmd.ExecuteNonQueryAsync();
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
     }
 
     /// <summary>执行 RESTORE VERIFYONLY 校验备份文件</summary>
-    public static async Task ExecuteVerifyAsync(Connection conn, string backupPath, int timeoutSec = 300)
+    public static async Task ExecuteVerifyAsync(Connection conn, string backupPath, int timeoutSec = 300, CancellationToken cancellationToken = default)
     {
         await using var sqlConn = new SqlConnection(BuildConnectionString(conn, "master"));
-        await sqlConn.OpenAsync();
+        await sqlConn.OpenAsync(cancellationToken);
         await using var cmd = new SqlCommand("RESTORE VERIFYONLY FROM DISK = @path", sqlConn)
             { CommandTimeout = timeoutSec };
         cmd.Parameters.AddWithValue("@path", backupPath);
-        await cmd.ExecuteNonQueryAsync();
+        using var cancelRegistration = cancellationToken.Register(() =>
+        {
+            try { cmd.Cancel(); }
+            catch { /* 取消时连接可能已释放 */ }
+        });
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
     }
 
     /// <summary>执行存储过程</summary>
     public static async Task<string?> ExecuteProcedureAsync(Connection conn, string database,
-        string procedureName, Dictionary<string, string>? parameters = null, int timeoutSec = 300)
+        string procedureName, Dictionary<string, string>? parameters = null, int timeoutSec = 300, CancellationToken cancellationToken = default)
     {
         await using var sqlConn = new SqlConnection(BuildConnectionString(conn, database));
-        await sqlConn.OpenAsync();
+        await sqlConn.OpenAsync(cancellationToken);
         await using var cmd = new SqlCommand(procedureName, sqlConn)
         {
             CommandType = System.Data.CommandType.StoredProcedure,
@@ -104,29 +114,44 @@ public class SqlServerClient
             foreach (var (name, value) in parameters)
                 cmd.Parameters.AddWithValue(name, value);
 
-        var rowsAffected = await cmd.ExecuteNonQueryAsync();
+        using var cancelRegistration = cancellationToken.Register(() =>
+        {
+            try { cmd.Cancel(); }
+            catch { /* 取消时连接可能已释放 */ }
+        });
+        var rowsAffected = await cmd.ExecuteNonQueryAsync(cancellationToken);
         return $"存储过程执行完成，影响 {rowsAffected} 行";
     }
 
     /// <summary>执行自定义 SQL</summary>
     public static async Task<string?> ExecuteSqlAsync(Connection conn, string database,
-        string sql, int timeoutSec = 600)
+        string sql, int timeoutSec = 600, CancellationToken cancellationToken = default)
     {
         await using var sqlConn = new SqlConnection(BuildConnectionString(conn, database));
-        await sqlConn.OpenAsync();
+        await sqlConn.OpenAsync(cancellationToken);
         await using var cmd = new SqlCommand(sql, sqlConn) { CommandTimeout = timeoutSec };
-        var rowsAffected = await cmd.ExecuteNonQueryAsync();
+        using var cancelRegistration = cancellationToken.Register(() =>
+        {
+            try { cmd.Cancel(); }
+            catch { /* 取消时连接可能已释放 */ }
+        });
+        var rowsAffected = await cmd.ExecuteNonQueryAsync(cancellationToken);
         return $"SQL 执行完成，影响 {rowsAffected} 行";
     }
 
     /// <summary>获取数据库大小（MB），用于备份前空间预检</summary>
-    public static async Task<long> GetDatabaseSizeMbAsync(Connection conn, string database)
+    public static async Task<long> GetDatabaseSizeMbAsync(Connection conn, string database, CancellationToken cancellationToken = default)
     {
         await using var sqlConn = new SqlConnection(BuildConnectionString(conn, database));
-        await sqlConn.OpenAsync();
+        await sqlConn.OpenAsync(cancellationToken);
         await using var cmd = new SqlCommand(
             "SELECT SUM(size) * 8 / 1024 FROM sys.database_files", sqlConn);
-        var result = await cmd.ExecuteScalarAsync();
+        using var cancelRegistration = cancellationToken.Register(() =>
+        {
+            try { cmd.Cancel(); }
+            catch { /* 取消时连接可能已释放 */ }
+        });
+        var result = await cmd.ExecuteScalarAsync(cancellationToken);
         return result is DBNull ? 0 : Convert.ToInt64(result);
     }
 }

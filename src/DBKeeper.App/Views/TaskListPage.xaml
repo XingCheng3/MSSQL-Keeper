@@ -35,6 +35,7 @@
                 <ComboBoxItem Content="成功" Tag="SUCCESS" />
                 <ComboBoxItem Content="警告" Tag="WARNING" />
                 <ComboBoxItem Content="失败" Tag="FAILED" />
+                <ComboBoxItem Content="已取消" Tag="CANCELLED" />
             </ComboBox>
             <ui:TextBox x:Name="txtSearch" PlaceholderText="搜索任务..." Width="200"
                         TextChanged="Search_Changed" />
@@ -78,6 +79,12 @@
                                            Icon="{ui:SymbolIcon Play24}"
                                            IsEnabled="{Binding IsRunning, Converter={StaticResource InvertBool}}"
                                            Tag="{Binding}" Click="ExecuteNow_Click" />
+                                <ui:Button ToolTip="取消执行" Margin="0,0,4,0"
+                                           Appearance="Danger"
+                                           Icon="{ui:SymbolIcon Dismiss24}"
+                                           Visibility="{Binding IsRunning, Converter={StaticResource BoolToVisibility}}"
+                                           IsEnabled="{Binding IsCancelling, Converter={StaticResource InvertBool}}"
+                                           Tag="{Binding}" Click="CancelTask_Click" />
                                 <ui:Button ToolTip="编辑" Margin="0,0,4,0"
                                            Icon="{ui:SymbolIcon Edit24}"
                                            Tag="{Binding}" Click="EditTask_Click" />

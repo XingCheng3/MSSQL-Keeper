@@ -10,7 +10,7 @@ public class ExecutionLog
     public string StartedAt { get; set; } = string.Empty;
     public string? FinishedAt { get; set; }
     public int? DurationMs { get; set; }
-    public string Status { get; set; } = string.Empty;        // RUNNING / SUCCESS / FAILED / WARNING
+    public string Status { get; set; } = string.Empty;        // RUNNING / SUCCESS / FAILED / WARNING / CANCELLED
     public string? Summary { get; set; }
     public string? ErrorDetail { get; set; }
 }

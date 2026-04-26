@@ -11,12 +11,12 @@ public class ProcedureExecutor : ITaskExecutor
 {
     public string TaskType => "PROCEDURE";
 
-    public async Task<ExecutionResult> ExecuteAsync(TaskItem task, Connection connection)
+    public async Task<ExecutionResult> ExecuteAsync(TaskItem task, Connection connection, CancellationToken cancellationToken = default)
     {
         var config = JsonSerializer.Deserialize<ProcedureConfig>(task.TaskConfig)!;
         var parameters = config.Parameters?.ToDictionary(p => p.Name, p => p.Value);
         var result = await SqlServerClient.ExecuteProcedureAsync(
-            connection, config.DatabaseName, config.ProcedureName, parameters, config.TimeoutSec);
+            connection, config.DatabaseName, config.ProcedureName, parameters, config.TimeoutSec, cancellationToken);
         return ExecutionResult.Ok(result ?? "执行完成");
     }
 }

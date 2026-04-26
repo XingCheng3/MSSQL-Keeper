@@ -11,11 +11,11 @@ public class SqlExecutor : ITaskExecutor
 {
     public string TaskType => "CUSTOM_SQL";
 
-    public async Task<ExecutionResult> ExecuteAsync(TaskItem task, Connection connection)
+    public async Task<ExecutionResult> ExecuteAsync(TaskItem task, Connection connection, CancellationToken cancellationToken = default)
     {
         var config = JsonSerializer.Deserialize<SqlConfig>(task.TaskConfig)!;
         var result = await SqlServerClient.ExecuteSqlAsync(
-            connection, config.DatabaseName, config.SqlContent, config.TimeoutSec);
+            connection, config.DatabaseName, config.SqlContent, config.TimeoutSec, cancellationToken);
         return ExecutionResult.Ok(result ?? "执行完成");
     }
 }

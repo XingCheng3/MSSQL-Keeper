@@ -11,7 +11,7 @@ public interface ITaskExecutor
     string TaskType { get; }
 
     /// <summary>执行任务并返回结果</summary>
-    Task<ExecutionResult> ExecuteAsync(TaskItem task, Connection connection);
+    Task<ExecutionResult> ExecuteAsync(TaskItem task, Connection connection, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
