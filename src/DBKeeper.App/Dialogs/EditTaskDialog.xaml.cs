@@ -284,6 +284,13 @@ public partial class EditTaskDialog : Wpf.Ui.Controls.FluentWindow
         e.Handled = true;
     }
 
+    private void DragBar_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (e.ButtonState != System.Windows.Input.MouseButtonState.Pressed) return;
+        try { DragMove(); }
+        catch { /* 忽略拖拽过程中鼠标状态变化导致的异常 */ }
+    }
+
     /// <summary>连接选择变更时异步加载数据库列表</summary>
     private async void CmbConnection_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {

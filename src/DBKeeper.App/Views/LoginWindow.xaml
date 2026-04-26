@@ -11,7 +11,8 @@
 
     <Border CornerRadius="12"
             Background="{DynamicResource ApplicationBackgroundBrush}"
-            TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+            TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+            MouseLeftButtonDown="DragSurface_MouseLeftButtonDown">
         <Grid>
             <!-- 关闭按钮 -->
             <Button x:Name="btnClose" Content="✕" 

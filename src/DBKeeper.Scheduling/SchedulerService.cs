@@ -253,6 +253,7 @@ public class SchedulerService
             Status = "RUNNING"
         };
         log.Id = await _logRepo.InsertAsync(log);
+        await _taskRepo.UpdateLastRunAsync(task.Id, "RUNNING", task.NextRunAt);
         var sw = System.Diagnostics.Stopwatch.StartNew();
 
         try

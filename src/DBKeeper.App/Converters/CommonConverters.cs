@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Media;
 
 namespace DBKeeper.App.Converters;
 
@@ -62,6 +63,25 @@ public class FileSizeConverter : IValueConverter
             < 1024 * 1024 * 1024 => $"{bytes / (1024.0 * 1024):F1} MB",
             _ => $"{bytes / (1024.0 * 1024 * 1024):F2} GB"
         };
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotImplementedException();
+}
+
+/// <summary>连接心跳状态 → 状态点颜色，null 表示尚未完成检测</summary>
+public class ConnectionStatusBrushConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        var resourceKey = value switch
+        {
+            true => "SuccessBrush",
+            false => "ErrorBrush",
+            _ => "NeutralBrush"
+        };
+
+        return Application.Current.TryFindResource(resourceKey) as Brush ?? Brushes.Gray;
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

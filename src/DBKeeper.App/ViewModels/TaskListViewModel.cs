@@ -88,6 +88,10 @@ public partial class TaskListViewModel : ObservableObject
     [RelayCommand]
     private async Task ExecuteNowAsync(TaskListItem item)
     {
+        if (item.IsRunning) return;
+
+        item.IsRunning = true;
+        item.LastRunStatus = "RUNNING";
         await _scheduler.TriggerNowAsync(item.Model.Id);
         Log.Information("手动触发任务: {Name}", item.Model.Name);
         await LoadAsync(); // 刷新状态
@@ -136,9 +140,26 @@ public partial class TaskListItem : ObservableObject
         Model = model;
         ConnectionName = connectionName;
         _isEnabled = model.IsEnabled;
+        _lastRunStatus = model.LastRunStatus;
     }
 
     [ObservableProperty] private bool _isEnabled;
+    [ObservableProperty] private bool _isRunning;
+    [ObservableProperty] private string? _lastRunStatus;
+
+    public string StatusDisplay => IsRunning || LastRunStatus == "RUNNING"
+        ? "执行中..."
+        : LastRunStatus ?? "—";
+
+    partial void OnIsRunningChanged(bool value)
+    {
+        OnPropertyChanged(nameof(StatusDisplay));
+    }
+
+    partial void OnLastRunStatusChanged(string? value)
+    {
+        OnPropertyChanged(nameof(StatusDisplay));
+    }
 
     /// <summary>任务类型中文显示</summary>
     public string TypeDisplay => Model.TaskType switch

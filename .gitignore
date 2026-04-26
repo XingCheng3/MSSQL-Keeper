@@ -69,5 +69,6 @@ data/
 *.swp
 *.tmp
 *~
-docs/
+# ---------- Project documents ----------
+# docs/ 是后续开发任务依据，不能忽略。
 .gemini/

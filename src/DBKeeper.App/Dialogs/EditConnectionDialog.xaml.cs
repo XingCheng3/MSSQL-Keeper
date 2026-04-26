@@ -75,4 +75,11 @@ public partial class EditConnectionDialog : Wpf.Ui.Controls.FluentWindow
         DialogResult = false;
         Close();
     }
+
+    private void DragBar_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (e.ButtonState != System.Windows.Input.MouseButtonState.Pressed) return;
+        try { DragMove(); }
+        catch { /* 忽略拖拽过程中鼠标状态变化导致的异常 */ }
+    }
 }

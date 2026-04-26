@@ -119,7 +119,7 @@ DBKeeper/
 │   ├── DDD.md                  # 数据库设计文档
 │   ├── UI_SPEC.md              # UI 设计规范
 │   ├── CODING_STANDARDS.md     # 编码规范
-│   └── TODO.md                 # 开发任务清单
+│   └── 当前审查结果与后续开发计划.md # 后续开发主依据
 ├── DBKeeper.sln                # 解决方案文件
 └── README.md
 ```

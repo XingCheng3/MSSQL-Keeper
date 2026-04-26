@@ -5,23 +5,20 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{FB553359-DC67-46F8-8A6C-DA9E50E24BA8}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DBKeeper.App", "src\DBKeeper.App\DBKeeper.App.csproj", "{2EE8AC5A-DE8E-460D-A2A3-91C196908AB9}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DBKeeper.App", "src\DBKeeper.App\DBKeeper.App.csproj", "{2EE8AC5A-DE8E-460D-A2A3-91C196908AB9}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DBKeeper.Core", "src\DBKeeper.Core\DBKeeper.Core.csproj", "{3504F593-24B9-4008-89F8-E2ECB65ECEF5}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DBKeeper.Core", "src\DBKeeper.Core\DBKeeper.Core.csproj", "{3504F593-24B9-4008-89F8-E2ECB65ECEF5}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DBKeeper.Data", "src\DBKeeper.Data\DBKeeper.Data.csproj", "{C6580711-161C-4ABB-9587-A9144D49B665}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DBKeeper.Data", "src\DBKeeper.Data\DBKeeper.Data.csproj", "{C6580711-161C-4ABB-9587-A9144D49B665}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DBKeeper.Scheduling", "src\DBKeeper.Scheduling\DBKeeper.Scheduling.csproj", "{ED88F5D7-3BA9-4985-B71D-70F345AF6950}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DBKeeper.Scheduling", "src\DBKeeper.Scheduling\DBKeeper.Scheduling.csproj", "{ED88F5D7-3BA9-4985-B71D-70F345AF6950}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DBKeeper.Executors", "src\DBKeeper.Executors\DBKeeper.Executors.csproj", "{6B7FC778-6322-497E-BBBA-B4B48E0DB2EA}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DBKeeper.Executors", "src\DBKeeper.Executors\DBKeeper.Executors.csproj", "{6B7FC778-6322-497E-BBBA-B4B48E0DB2EA}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Release|Any CPU = Release|Any CPU
-	EndGlobalSection
-	GlobalSection(SolutionProperties) = preSolution
-		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{2EE8AC5A-DE8E-460D-A2A3-91C196908AB9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
@@ -45,11 +42,17 @@ Global
 		{6B7FC778-6322-497E-BBBA-B4B48E0DB2EA}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6B7FC778-6322-497E-BBBA-B4B48E0DB2EA}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{2EE8AC5A-DE8E-460D-A2A3-91C196908AB9} = {FB553359-DC67-46F8-8A6C-DA9E50E24BA8}
 		{3504F593-24B9-4008-89F8-E2ECB65ECEF5} = {FB553359-DC67-46F8-8A6C-DA9E50E24BA8}
 		{C6580711-161C-4ABB-9587-A9144D49B665} = {FB553359-DC67-46F8-8A6C-DA9E50E24BA8}
 		{ED88F5D7-3BA9-4985-B71D-70F345AF6950} = {FB553359-DC67-46F8-8A6C-DA9E50E24BA8}
 		{6B7FC778-6322-497E-BBBA-B4B48E0DB2EA} = {FB553359-DC67-46F8-8A6C-DA9E50E24BA8}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {2232E503-EE45-4079-B1B7-7A6DF858C00B}
 	EndGlobalSection
 EndGlobal

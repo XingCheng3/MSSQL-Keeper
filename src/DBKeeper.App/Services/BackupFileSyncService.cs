@@ -13,6 +13,7 @@ public class BackupFileSyncService
     private readonly IExecutionLogRepository _logRepo;
     private readonly ISettingsRepository _settingsRepo;
     private readonly ITaskRepository _taskRepo;
+    private readonly SemaphoreSlim _scanLock = new(1, 1);
     private Timer? _timer;
 
     public BackupFileSyncService(
@@ -30,8 +31,8 @@ public class BackupFileSyncService
     public void Start()
     {
         var intervalMin = GetScanIntervalMin();
-        _timer = new Timer(_ => _ = ScanAsync(), null,
-            TimeSpan.FromMinutes(5),          // 首次延迟5分钟
+        _timer = new Timer(_ => _ = ScanNowAsync(), null,
+            TimeSpan.FromMinutes(intervalMin),
             TimeSpan.FromMinutes(intervalMin));
         Log.Information("备份文件同步服务启动，间隔 {Interval} 分钟", intervalMin);
     }
@@ -49,22 +50,28 @@ public class BackupFileSyncService
         return int.TryParse(val, out var min) ? min : 30;
     }
 
-    private async Task ScanAsync()
+    public async Task<BackupFileSyncResult> ScanNowAsync()
+    {
+        if (!await _scanLock.WaitAsync(0))
+        {
+            return new BackupFileSyncResult(0, 0, "已有备份文件同步扫描正在执行");
+        }
+
+        try
+        {
+            return await ScanCoreAsync();
+        }
+        finally
+        {
+            _scanLock.Release();
+        }
+    }
+
+    private async Task<BackupFileSyncResult> ScanCoreAsync()
     {
         int logId = 0;
         try
         {
-            var startedAt = DateTime.Now.ToString("O");
-            logId = await _logRepo.InsertAsync(new Core.Models.ExecutionLog
-            {
-                TaskId = 0,
-                TaskName = "备份文件同步扫描",
-                TaskType = "SYSTEM",
-                TriggerType = "SYSTEM",
-                StartedAt = startedAt,
-                Status = "RUNNING"
-            });
-
             int totalChecked = 0;
             int totalDeleted = 0;
 
@@ -131,9 +138,23 @@ public class BackupFileSyncService
             }
 
             var summary = $"扫描完成: 检查 {totalChecked} 个文件，标记 {totalDeleted} 个为 DELETED";
-            var durationMs = (int)(DateTime.Now - DateTime.Parse(startedAt)).TotalMilliseconds;
-            await _logRepo.UpdateFinishAsync(logId, "SUCCESS", durationMs, summary, null);
+            if (totalDeleted > 0)
+            {
+                var startedAt = DateTime.Now.ToString("O");
+                logId = await _logRepo.InsertAsync(new Core.Models.ExecutionLog
+                {
+                    TaskId = 0,
+                    TaskName = "备份文件同步扫描",
+                    TaskType = "SYSTEM",
+                    TriggerType = "SYSTEM",
+                    StartedAt = startedAt,
+                    Status = "RUNNING"
+                });
+
+                await _logRepo.UpdateFinishAsync(logId, "SUCCESS", 0, summary, null);
+            }
             Log.Information("备份文件同步扫描完成: {Summary}", summary);
+            return new BackupFileSyncResult(totalChecked, totalDeleted, summary);
         }
         catch (Exception ex)
         {
@@ -143,6 +164,10 @@ public class BackupFileSyncService
                 try { await _logRepo.UpdateFinishAsync(logId, "FAILED", 0, null, ex.ToString()); }
                 catch { /* 避免二次异常 */ }
             }
+
+            return new BackupFileSyncResult(0, 0, $"扫描失败: {ex.Message}");
         }
     }
 }
+
+public record BackupFileSyncResult(int CheckedCount, int DeletedCount, string Summary);

@@ -4,7 +4,7 @@
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       Title="备份管理" Loaded="Page_Loaded">
 
-    <Grid Margin="24" TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+    <Grid Style="{StaticResource DbkPageGridStyle}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -12,13 +12,16 @@
         </Grid.RowDefinitions>
 
         <!-- 标题 -->
-        <DockPanel Grid.Row="0" Margin="0,0,0,12">
-            <TextBlock Text="备份管理" FontSize="22" FontWeight="SemiBold" VerticalAlignment="Center" />
+        <DockPanel Grid.Row="0" Style="{StaticResource DbkPageTitleBarStyle}">
+            <TextBlock Text="备份管理" Style="{StaticResource DbkPageTitleTextStyle}" />
+            <ui:Button Content="刷新扫描" DockPanel.Dock="Right" HorizontalAlignment="Right"
+                       Icon="{ui:SymbolIcon ArrowSync24}" Click="RefreshScan_Click" />
         </DockPanel>
 
         <!-- 过滤 -->
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,12">
-            <ComboBox x:Name="cmbDatabase" Width="120" Margin="0,0,8,0" SelectionChanged="Filter_Changed">
+        <StackPanel Grid.Row="1" Style="{StaticResource DbkFilterBarStyle}">
+            <ComboBox x:Name="cmbDatabase" Width="120" Margin="0,0,8,0" SelectionChanged="Filter_Changed"
+                      MaxDropDownHeight="260" ScrollViewer.VerticalScrollBarVisibility="Auto">
                 <ComboBoxItem Content="全部数据库" IsSelected="True" />
             </ComboBox>
             <ComboBox x:Name="cmbStatus" Width="100" Margin="0,0,8,0" SelectionChanged="Filter_Changed">
@@ -47,12 +50,8 @@
         </StackPanel>
 
         <!-- 备份文件列表 -->
-        <DataGrid x:Name="fileGrid" Grid.Row="2" AutoGenerateColumns="False" IsReadOnly="True"
-                  HeadersVisibility="Column" GridLinesVisibility="None"
-                  SelectionMode="Single" Background="Transparent" BorderThickness="0"
-                  Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                  RowBackground="Transparent"
-                  AlternatingRowBackground="{DynamicResource CardBackgroundFillColorDefaultBrush}">
+        <DataGrid x:Name="fileGrid" Grid.Row="2" Style="{StaticResource DbkDataGridStyle}"
+                  SelectionMode="Single">
             <DataGrid.Columns>
                 <DataGridTemplateColumn Header="选择" Width="40">
                     <DataGridTemplateColumn.CellTemplate>
@@ -87,7 +86,7 @@
                 </DataGridTemplateColumn>
             </DataGrid.Columns>
             <DataGrid.RowStyle>
-                <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
+                <Style TargetType="DataGridRow" BasedOn="{StaticResource DbkDataGridRowStyle}">
                     <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
                 </Style>
             </DataGrid.RowStyle>

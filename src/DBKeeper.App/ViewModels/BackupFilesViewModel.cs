@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DBKeeper.App.Services;
 using DBKeeper.Core.Models;
 using DBKeeper.Data.Repositories;
 using Serilog;
@@ -10,6 +11,7 @@ namespace DBKeeper.App.ViewModels;
 public partial class BackupFilesViewModel : ObservableObject
 {
     private readonly IBackupFileRepository _repo;
+    private readonly BackupFileSyncService _syncService;
 
     public ObservableCollection<BackupFile> Files { get; } = [];
     public ObservableCollection<BackupFile> SelectedFiles { get; } = [];
@@ -19,10 +21,12 @@ public partial class BackupFilesViewModel : ObservableObject
     [ObservableProperty] private DateTime? _filterDateFrom;
     [ObservableProperty] private DateTime? _filterDateTo;
     [ObservableProperty] private int _selectedCount;
+    [ObservableProperty] private string? _lastSyncSummary;
 
-    public BackupFilesViewModel(IBackupFileRepository repo)
+    public BackupFilesViewModel(IBackupFileRepository repo, BackupFileSyncService syncService)
     {
         _repo = repo;
+        _syncService = syncService;
     }
 
     [RelayCommand]
@@ -44,6 +48,14 @@ public partial class BackupFilesViewModel : ObservableObject
 
         // 大小异常检测
         DetectSizeAnomalies();
+    }
+
+    [RelayCommand]
+    public async Task SyncAndLoadAsync()
+    {
+        var result = await _syncService.ScanNowAsync();
+        LastSyncSummary = result.Summary;
+        await LoadAsync();
     }
 
     /// <summary>

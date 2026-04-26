@@ -16,12 +16,136 @@
             <conv:InvertBoolConverter x:Key="InvertBool" />
             <conv:IsoDateTimeConverter x:Key="IsoDateTime" />
             <conv:FileSizeConverter x:Key="FileSize" />
+            <conv:ConnectionStatusBrushConverter x:Key="ConnectionStatusBrush" />
 
             <!-- 语义色：保持 Fluent Design 规范 -->
             <SolidColorBrush x:Key="SuccessBrush" Color="#0F7B0F" />
             <SolidColorBrush x:Key="ErrorBrush" Color="#C42B1C" />
             <SolidColorBrush x:Key="WarningBrush" Color="#D47800" />
             <SolidColorBrush x:Key="NeutralBrush" Color="#8E8E8E" />
+
+            <!-- 页面布局 -->
+            <Style x:Key="DbkPageGridStyle" TargetType="{x:Type Grid}">
+                <Setter Property="Margin" Value="24" />
+                <Setter Property="TextElement.Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            </Style>
+
+            <Style x:Key="DbkPageScrollViewerStyle" TargetType="{x:Type ScrollViewer}">
+                <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
+                <Setter Property="HorizontalScrollBarVisibility" Value="Disabled" />
+                <Setter Property="TextElement.Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            </Style>
+
+            <Style x:Key="DbkPageStackStyle" TargetType="{x:Type StackPanel}">
+                <Setter Property="Margin" Value="24" />
+            </Style>
+
+            <Style x:Key="DbkPageTitleBarStyle" TargetType="{x:Type DockPanel}">
+                <Setter Property="Margin" Value="0,0,0,12" />
+            </Style>
+
+            <Style x:Key="DbkPageTitleTextStyle" TargetType="{x:Type TextBlock}">
+                <Setter Property="FontSize" Value="22" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+
+            <Style x:Key="DbkSectionTitleTextStyle" TargetType="{x:Type TextBlock}">
+                <Setter Property="FontSize" Value="16" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Margin" Value="0,0,0,8" />
+            </Style>
+
+            <Style x:Key="DbkSettingsGroupTitleTextStyle" TargetType="{x:Type TextBlock}">
+                <Setter Property="FontSize" Value="14" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Margin" Value="0,14,0,10" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            </Style>
+
+            <Style x:Key="DbkFilterBarStyle" TargetType="{x:Type StackPanel}">
+                <Setter Property="Orientation" Value="Horizontal" />
+                <Setter Property="Margin" Value="0,0,0,12" />
+            </Style>
+
+            <!-- 卡片与列表项 -->
+            <Style x:Key="DbkCardBorderStyle" TargetType="{x:Type Border}">
+                <Setter Property="Padding" Value="16" />
+                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="Margin" Value="0,0,0,6" />
+                <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+            </Style>
+
+            <Style x:Key="DbkSummaryCardBorderStyle" TargetType="{x:Type Border}" BasedOn="{StaticResource DbkCardBorderStyle}">
+                <Setter Property="Padding" Value="20,16" />
+                <Setter Property="Margin" Value="0,0,12,0" />
+            </Style>
+
+            <Style x:Key="DbkListItemBorderStyle" TargetType="{x:Type Border}" BasedOn="{StaticResource DbkCardBorderStyle}">
+                <Setter Property="Padding" Value="12,10" />
+                <Setter Property="CornerRadius" Value="6" />
+                <Setter Property="Margin" Value="0,0,0,6" />
+            </Style>
+
+            <Style x:Key="DbkConnectionCardBorderStyle" TargetType="{x:Type Border}" BasedOn="{StaticResource DbkCardBorderStyle}">
+                <Setter Property="Width" Value="340" />
+                <Setter Property="Padding" Value="20" />
+                <Setter Property="Margin" Value="0,0,12,12" />
+            </Style>
+
+            <Style x:Key="DbkInlineDetailsBorderStyle" TargetType="{x:Type Border}" BasedOn="{StaticResource DbkCardBorderStyle}">
+                <Setter Property="Padding" Value="12,8" />
+                <Setter Property="CornerRadius" Value="6" />
+                <Setter Property="Margin" Value="4,8,4,4" />
+                <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+            </Style>
+
+            <Style x:Key="DbkDialogFooterBorderStyle" TargetType="{x:Type Border}">
+                <Setter Property="Padding" Value="20,12" />
+                <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+                <Setter Property="BorderThickness" Value="0,1,0,0" />
+                <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+            </Style>
+
+            <!-- 表格 -->
+            <Style x:Key="DbkDataGridColumnHeaderStyle" TargetType="{x:Type DataGridColumnHeader}">
+                <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+                <Setter Property="BorderThickness" Value="0,0,1,1" />
+                <Setter Property="Padding" Value="4,8" />
+            </Style>
+
+            <Style x:Key="DbkDataGridRowStyle" TargetType="{x:Type DataGridRow}">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+            </Style>
+
+            <Style x:Key="DbkDataGridCellStyle" TargetType="{x:Type DataGridCell}">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+                <Setter Property="BorderThickness" Value="0,0,1,0" />
+                <Setter Property="Padding" Value="4,0" />
+            </Style>
+
+            <Style x:Key="DbkDataGridStyle" TargetType="{x:Type DataGrid}" BasedOn="{StaticResource {x:Type DataGrid}}">
+                <Setter Property="AutoGenerateColumns" Value="False" />
+                <Setter Property="IsReadOnly" Value="True" />
+                <Setter Property="HeadersVisibility" Value="Column" />
+                <Setter Property="GridLinesVisibility" Value="None" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                <Setter Property="RowBackground" Value="Transparent" />
+                <Setter Property="AlternatingRowBackground" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+                <Setter Property="ColumnHeaderStyle" Value="{StaticResource DbkDataGridColumnHeaderStyle}" />
+                <Setter Property="RowStyle" Value="{StaticResource DbkDataGridRowStyle}" />
+                <Setter Property="CellStyle" Value="{StaticResource DbkDataGridCellStyle}" />
+            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

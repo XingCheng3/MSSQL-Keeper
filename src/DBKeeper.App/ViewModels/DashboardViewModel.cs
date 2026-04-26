@@ -1,8 +1,10 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DBKeeper.App.Services;
 using DBKeeper.Core.Models;
 using DBKeeper.Data.Repositories;
 using System.Collections.ObjectModel;
+using System.Windows;
 
 namespace DBKeeper.App.ViewModels;
 
@@ -13,6 +15,7 @@ public partial class DashboardViewModel : ObservableObject
     private readonly ISettingsRepository _settings;
     private readonly IConnectionRepository _connRepo;
     private readonly IBackupFileRepository _backupRepo;
+    private readonly ConnectionHeartbeatService _heartbeat;
 
     [ObservableProperty] private int _activeTaskCount;
     [ObservableProperty] private int _todayExecutionCount;
@@ -31,20 +34,23 @@ public partial class DashboardViewModel : ObservableObject
 
     public ObservableCollection<ExecutionLog> RecentLogs { get; } = [];
     public ObservableCollection<TaskItem> UpcomingTasks { get; } = [];
-    public ObservableCollection<Connection> Connections { get; } = [];
+    public ObservableCollection<DashboardConnectionItem> Connections { get; } = [];
 
     public DashboardViewModel(
         ITaskRepository taskRepo,
         IExecutionLogRepository logRepo,
         ISettingsRepository settings,
         IConnectionRepository connRepo,
-        IBackupFileRepository backupRepo)
+        IBackupFileRepository backupRepo,
+        ConnectionHeartbeatService heartbeat)
     {
         _taskRepo = taskRepo;
         _logRepo = logRepo;
         _settings = settings;
         _connRepo = connRepo;
         _backupRepo = backupRepo;
+        _heartbeat = heartbeat;
+        _heartbeat.StatusChanged += OnHeartbeatStatusChanged;
     }
 
     [RelayCommand]
@@ -108,7 +114,9 @@ public partial class DashboardViewModel : ObservableObject
         // 连接列表
         var conns = await _connRepo.GetAllAsync();
         Connections.Clear();
-        foreach (var c in conns) Connections.Add(c);
+        foreach (var c in conns)
+            Connections.Add(new DashboardConnectionItem(c, _heartbeat.GetStatus(c.Id)));
+        _ = _heartbeat.CheckAllAsync();
 
         // 备份统计
         var allBackups = await _backupRepo.GetAllAsync();
@@ -132,5 +140,49 @@ public partial class DashboardViewModel : ObservableObject
         {
             LastBackupTime = "暂无";
         }
+    }
+
+    private void OnHeartbeatStatusChanged(int connectionId, bool isOnline)
+    {
+        void Update()
+        {
+            var item = Connections.FirstOrDefault(c => c.Id == connectionId);
+            if (item != null) item.IsOnline = isOnline;
+        }
+
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher != null && !dispatcher.CheckAccess())
+            dispatcher.Invoke(Update);
+        else
+            Update();
+    }
+}
+
+public partial class DashboardConnectionItem : ObservableObject
+{
+    public int Id { get; }
+    public string Name { get; }
+    public string Host { get; }
+
+    [ObservableProperty] private bool? _isOnline;
+
+    public string StatusText => IsOnline switch
+    {
+        true => "已连接",
+        false => "未连接",
+        _ => "检测中"
+    };
+
+    public DashboardConnectionItem(Connection connection, bool? isOnline)
+    {
+        Id = connection.Id;
+        Name = connection.Name;
+        Host = connection.Host;
+        IsOnline = isOnline;
+    }
+
+    partial void OnIsOnlineChanged(bool? value)
+    {
+        OnPropertyChanged(nameof(StatusText));
     }
 }

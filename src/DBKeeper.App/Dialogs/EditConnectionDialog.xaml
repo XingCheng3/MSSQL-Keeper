@@ -3,56 +3,67 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
         Title="编辑连接" Height="480" Width="440"
-        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        MinHeight="420" MinWidth="420"
+        WindowStartupLocation="CenterOwner" ResizeMode="CanResizeWithGrip"
         ExtendsContentIntoTitleBar="False">
 
-    <Grid Margin="20" TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+    <Grid TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0">
-            <TextBlock Text="连接名称" FontSize="13" Margin="0,0,0,4" />
-            <ui:TextBox x:Name="txtName" PlaceholderText="如：MES 主库" Margin="0,0,0,12" />
+        <Border Grid.Row="0" Padding="20,12,20,8" MouseLeftButtonDown="DragBar_MouseLeftButtonDown">
+            <TextBlock Text="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=Title}"
+                       FontSize="16" FontWeight="SemiBold" />
+        </Border>
 
-            <TextBlock Text="服务器地址" FontSize="13" Margin="0,0,0,4" />
-            <ui:TextBox x:Name="txtHost" PlaceholderText="如：192.168.1.10,1433" Margin="0,0,0,12" />
+        <ScrollViewer Grid.Row="1" Margin="20,0,20,0"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+                <TextBlock Text="连接名称" FontSize="13" Margin="0,0,0,4" />
+                <ui:TextBox x:Name="txtName" PlaceholderText="如：MES 主库" Margin="0,0,0,12" />
 
-            <TextBlock Text="用户名" FontSize="13" Margin="0,0,0,4" />
-            <ui:TextBox x:Name="txtUsername" PlaceholderText="SQL Server 登录名" Margin="0,0,0,12" />
+                <TextBlock Text="服务器地址" FontSize="13" Margin="0,0,0,4" />
+                <ui:TextBox x:Name="txtHost" PlaceholderText="如：192.168.1.10,1433" Margin="0,0,0,12" />
 
-            <TextBlock Text="密码" FontSize="13" Margin="0,0,0,4" />
-            <ui:PasswordBox x:Name="txtPassword" PlaceholderText="留空则不修改密码" Margin="0,0,0,12" />
+                <TextBlock Text="用户名" FontSize="13" Margin="0,0,0,4" />
+                <ui:TextBox x:Name="txtUsername" PlaceholderText="SQL Server 登录名" Margin="0,0,0,12" />
 
-            <TextBlock Text="默认数据库" FontSize="13" Margin="0,0,0,4" />
-            <ui:TextBox x:Name="txtDefaultDb" PlaceholderText="留空则用 master" Margin="0,0,0,12" />
+                <TextBlock Text="密码" FontSize="13" Margin="0,0,0,4" />
+                <ui:PasswordBox x:Name="txtPassword" PlaceholderText="留空则不修改密码" Margin="0,0,0,12" />
 
-            <CheckBox x:Name="chkTrustCert" Content="信任服务器证书 (TrustServerCertificate)" IsChecked="True" Margin="0,0,0,12"
-                      ToolTip="关闭后将对 SQL Server 连接进行证书验证，建议生产环境关闭此项" />
+                <TextBlock Text="默认数据库" FontSize="13" Margin="0,0,0,4" />
+                <ui:TextBox x:Name="txtDefaultDb" PlaceholderText="留空则用 master" Margin="0,0,0,12" />
 
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                    <TextBlock Text="连接超时(秒)" FontSize="13" Margin="0,0,0,4" />
-                    <ui:TextBox x:Name="txtTimeout" Text="30" />
-                </StackPanel>
-                <StackPanel Grid.Column="1" Margin="8,0,0,0">
-                    <TextBlock Text="备注" FontSize="13" Margin="0,0,0,4" />
-                    <ui:TextBox x:Name="txtRemark" PlaceholderText="可选" />
-                </StackPanel>
-            </Grid>
+                <CheckBox x:Name="chkTrustCert" Content="信任服务器证书 (TrustServerCertificate)" IsChecked="True" Margin="0,0,0,12"
+                          ToolTip="关闭后将对 SQL Server 连接进行证书验证，建议生产环境关闭此项" />
 
-            <!-- 验证错误 -->
-            <TextBlock x:Name="errorText" Foreground="{DynamicResource ErrorBrush}" FontSize="12" Margin="0,12,0,0"
-                       TextWrapping="Wrap" Visibility="Collapsed" />
-        </StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                        <TextBlock Text="连接超时(秒)" FontSize="13" Margin="0,0,0,4" />
+                        <ui:TextBox x:Name="txtTimeout" Text="30" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                        <TextBlock Text="备注" FontSize="13" Margin="0,0,0,4" />
+                        <ui:TextBox x:Name="txtRemark" PlaceholderText="可选" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- 验证错误 -->
+                <TextBlock x:Name="errorText" Foreground="{DynamicResource ErrorBrush}" FontSize="12" Margin="0,12,0,0"
+                           TextWrapping="Wrap" Visibility="Collapsed" />
+            </StackPanel>
+        </ScrollViewer>
 
         <!-- 底部按钮 -->
-        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="20,12,20,16">
             <ui:Button Content="取消" Margin="0,0,8,0" Click="Cancel_Click" />
             <ui:Button Content="保存" Appearance="Primary" Click="Save_Click" />
         </StackPanel>

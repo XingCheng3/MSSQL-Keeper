@@ -4,13 +4,13 @@
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       Title="概览" Loaded="Page_Loaded">
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto"
+    <ScrollViewer Style="{StaticResource DbkPageScrollViewerStyle}"
                   PreviewMouseWheel="ScrollViewer_PreviewMouseWheel"
                   TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}">
-        <StackPanel Margin="24">
+        <StackPanel Style="{StaticResource DbkPageStackStyle}">
             <!-- 标题 -->
-            <DockPanel Margin="0,0,0,16">
-                <TextBlock Text="概览" FontSize="22" FontWeight="SemiBold" VerticalAlignment="Center" />
+            <DockPanel Style="{StaticResource DbkPageTitleBarStyle}" Margin="0,0,0,16">
+                <TextBlock Text="概览" Style="{StaticResource DbkPageTitleTextStyle}" />
                 <ui:Button Content="刷新" DockPanel.Dock="Right" HorizontalAlignment="Right"
                            Icon="{ui:SymbolIcon ArrowSync24}" Click="Refresh_Click" />
             </DockPanel>
@@ -18,9 +18,7 @@
             <!-- 统计卡片行 -->
             <UniformGrid Rows="1" Columns="4" Margin="0,0,0,20">
                 <!-- 活跃任务 -->
-                <Border Margin="0,0,12,0" Padding="20,16" CornerRadius="8"
-                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                <Border Style="{StaticResource DbkSummaryCardBorderStyle}">
                     <DockPanel>
                         <ui:SymbolIcon Symbol="Timer24" FontSize="28" VerticalAlignment="Center"
                                        Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
@@ -35,9 +33,7 @@
                 </Border>
 
                 <!-- 今日执行 -->
-                <Border Margin="0,0,12,0" Padding="20,16" CornerRadius="8"
-                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                <Border Style="{StaticResource DbkSummaryCardBorderStyle}">
                     <DockPanel>
                         <ui:SymbolIcon Symbol="CheckmarkCircle24" FontSize="28" VerticalAlignment="Center"
                                        Foreground="{DynamicResource SuccessBrush}"
@@ -52,9 +48,7 @@
                 </Border>
 
                 <!-- 失败数 -->
-                <Border Margin="0,0,12,0" Padding="20,16" CornerRadius="8"
-                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                <Border Style="{StaticResource DbkSummaryCardBorderStyle}">
                     <DockPanel>
                         <ui:SymbolIcon Symbol="ErrorCircle24" FontSize="28" VerticalAlignment="Center"
                                        Foreground="{DynamicResource ErrorBrush}"
@@ -69,9 +63,7 @@
                 </Border>
 
                 <!-- 磁盘空间 - 进度条+结构化 -->
-                <Border Padding="20,16" CornerRadius="8"
-                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                <Border Style="{StaticResource DbkSummaryCardBorderStyle}" Margin="0">
                     <StackPanel>
                         <DockPanel Margin="0,0,0,6">
                             <ui:SymbolIcon Symbol="HardDrive24" FontSize="18" VerticalAlignment="Center"
@@ -107,13 +99,9 @@
 
                 <!-- 左列 - 最近日志 -->
                 <StackPanel Grid.Column="0" Margin="0,0,16,0">
-                    <TextBlock Text="最近执行日志" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,8" />
-                    <DataGrid x:Name="recentGrid" AutoGenerateColumns="False" IsReadOnly="True"
-                              MaxHeight="400" HeadersVisibility="Column" GridLinesVisibility="None"
-                              Background="Transparent" BorderThickness="0"
-                              Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                              RowBackground="Transparent"
-                              AlternatingRowBackground="{DynamicResource CardBackgroundFillColorDefaultBrush}">
+                    <TextBlock Text="最近执行日志" Style="{StaticResource DbkSectionTitleTextStyle}" />
+                    <DataGrid x:Name="recentGrid" Style="{StaticResource DbkDataGridStyle}"
+                              MaxHeight="400">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="时间" Binding="{Binding StartedAt, Converter={StaticResource IsoDateTime}, ConverterParameter=MM-dd HH:mm}" Width="110" />
                             <DataGridTextColumn Header="任务名" Binding="{Binding TaskName}" Width="*" />
@@ -127,13 +115,11 @@
                 <!-- 右列 -->
                 <StackPanel Grid.Column="1">
                     <!-- 即将执行 -->
-                    <TextBlock Text="即将执行的任务" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,8" />
+                    <TextBlock Text="即将执行的任务" Style="{StaticResource DbkSectionTitleTextStyle}" />
                     <ItemsControl x:Name="upcomingList">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border Padding="12,10" Margin="0,0,0,6" CornerRadius="6"
-                                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                                <Border Style="{StaticResource DbkListItemBorderStyle}">
                                     <DockPanel>
                                         <ui:SymbolIcon Symbol="Clock24" FontSize="16" Margin="0,0,8,0"
                                                        Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
@@ -149,20 +135,22 @@
                     </ItemsControl>
 
                     <!-- 连接状态 -->
-                    <TextBlock Text="连接状态" FontSize="16" FontWeight="SemiBold" Margin="0,20,0,8" />
+                    <TextBlock Text="连接状态" Style="{StaticResource DbkSectionTitleTextStyle}" Margin="0,20,0,8" />
                     <ItemsControl x:Name="connectionStatusList">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border Padding="12,10" Margin="0,0,0,6" CornerRadius="6"
-                                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                                <Border Style="{StaticResource DbkListItemBorderStyle}">
                                     <DockPanel>
                                         <Ellipse Width="8" Height="8" Margin="0,0,8,0" VerticalAlignment="Center"
-                                                 Fill="{DynamicResource NeutralBrush}" />
+                                                 Fill="{Binding IsOnline, Converter={StaticResource ConnectionStatusBrush}}" />
                                         <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
-                                        <TextBlock DockPanel.Dock="Right" HorizontalAlignment="Right"
-                                                   Text="{Binding Host}" FontSize="12" VerticalAlignment="Center"
-                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
+                                            <TextBlock Text="{Binding StatusText}" FontSize="12" VerticalAlignment="Center"
+                                                       Margin="0,0,8,0"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            <TextBlock Text="{Binding Host}" FontSize="12" VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                        </StackPanel>
                                     </DockPanel>
                                 </Border>
                             </DataTemplate>
@@ -170,10 +158,8 @@
                     </ItemsControl>
 
                     <!-- 备份统计 -->
-                    <TextBlock Text="备份统计" FontSize="16" FontWeight="SemiBold" Margin="0,20,0,8" />
-                    <Border Padding="16" CornerRadius="8"
-                            Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                    <TextBlock Text="备份统计" Style="{StaticResource DbkSectionTitleTextStyle}" Margin="0,20,0,8" />
+                    <Border Style="{StaticResource DbkCardBorderStyle}" Margin="0">
                         <StackPanel>
                             <DockPanel Margin="0,0,0,6">
                                 <TextBlock Text="总备份数" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />

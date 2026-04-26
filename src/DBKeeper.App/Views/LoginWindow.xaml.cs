@@ -67,4 +67,11 @@ public partial class LoginWindow : Window
     {
         Application.Current.Shutdown();
     }
+
+    private void DragSurface_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ButtonState != MouseButtonState.Pressed) return;
+        try { DragMove(); }
+        catch { /* 忽略拖拽过程中鼠标状态变化导致的异常 */ }
+    }
 }

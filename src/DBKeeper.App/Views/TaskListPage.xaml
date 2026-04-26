@@ -4,7 +4,7 @@
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       Title="定时任务" Loaded="Page_Loaded">
 
-    <Grid Margin="24" TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+    <Grid Style="{StaticResource DbkPageGridStyle}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -12,15 +12,16 @@
         </Grid.RowDefinitions>
 
         <!-- 标题 -->
-        <DockPanel Grid.Row="0" Margin="0,0,0,12">
-            <TextBlock Text="定时任务" FontSize="22" FontWeight="SemiBold" VerticalAlignment="Center" />
+        <DockPanel Grid.Row="0" Style="{StaticResource DbkPageTitleBarStyle}">
+            <TextBlock Text="定时任务" Style="{StaticResource DbkPageTitleTextStyle}" />
             <ui:Button Content="+ 新建任务" Appearance="Primary" DockPanel.Dock="Right"
                        HorizontalAlignment="Right" Click="NewTask_Click" />
         </DockPanel>
 
         <!-- 过滤 -->
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,12">
-            <ComboBox x:Name="cmbType" Width="120" Margin="0,0,8,0" SelectionChanged="Filter_Changed">
+        <StackPanel Grid.Row="1" Style="{StaticResource DbkFilterBarStyle}">
+            <ComboBox x:Name="cmbType" Width="120" Margin="0,0,8,0" SelectionChanged="Filter_Changed"
+                      MaxDropDownHeight="260" ScrollViewer.VerticalScrollBarVisibility="Auto">
                 <ComboBoxItem Content="全部类型" IsSelected="True" />
                 <ComboBoxItem Content="备份" Tag="BACKUP" />
                 <ComboBoxItem Content="存储过程" Tag="PROCEDURE" />
@@ -45,19 +46,14 @@
         </StackPanel>
 
         <!-- 任务列表 -->
-        <DataGrid x:Name="taskGrid" Grid.Row="2" AutoGenerateColumns="False" IsReadOnly="True"
-                  HeadersVisibility="Column" GridLinesVisibility="None"
-                  CanUserSortColumns="True" SelectionMode="Single"
-                  Background="Transparent" BorderThickness="0"
-                  Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                  RowBackground="Transparent"
-                  AlternatingRowBackground="{DynamicResource CardBackgroundFillColorDefaultBrush}">
+        <DataGrid x:Name="taskGrid" Grid.Row="2" Style="{StaticResource DbkDataGridStyle}"
+                  CanUserSortColumns="True" SelectionMode="Single">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="名称" Binding="{Binding Model.Name}" Width="*" />
                 <DataGridTextColumn Header="类型" Binding="{Binding TypeDisplay}" Width="80" />
                 <DataGridTextColumn Header="连接" Binding="{Binding ConnectionName}" Width="100" />
                 <DataGridTextColumn Header="周期" Binding="{Binding ScheduleDisplay}" Width="140" />
-                <DataGridTextColumn Header="上次执行" Binding="{Binding Model.LastRunStatus}" Width="80" />
+                <DataGridTextColumn Header="上次执行" Binding="{Binding StatusDisplay}" Width="90" />
                 <DataGridTemplateColumn Header="启用" Width="60">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
@@ -72,6 +68,7 @@
                             <StackPanel Orientation="Horizontal">
                                 <ui:Button ToolTip="立即执行" Margin="0,0,4,0"
                                            Icon="{ui:SymbolIcon Play24}"
+                                           IsEnabled="{Binding IsRunning, Converter={StaticResource InvertBool}}"
                                            Tag="{Binding}" Click="ExecuteNow_Click" />
                                 <ui:Button ToolTip="编辑" Margin="0,0,4,0"
                                            Icon="{ui:SymbolIcon Edit24}"

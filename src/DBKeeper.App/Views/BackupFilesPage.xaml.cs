@@ -87,6 +87,13 @@ public partial class BackupFilesPage : Page
         }
     }
 
+    private async void RefreshScan_Click(object sender, RoutedEventArgs e)
+    {
+        await _vm.SyncAndLoadCommand.ExecuteAsync(null);
+        PopulateDatabaseFilter();
+        UpdateEmptyState();
+    }
+
     private void RowCheckbox_Click(object sender, RoutedEventArgs e)
     {
         if (sender is System.Windows.Controls.CheckBox cb && cb.Tag is BackupFile file)

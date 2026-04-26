@@ -21,11 +21,12 @@ public class BackupExecutor : ITaskExecutor
         var dbName = config.DatabaseName;
         var backupDir = config.BackupDir;
 
-        // 文件名变量替换
-        var fileName = (config.FileNameTemplate ?? "{DB}_{DATE}.bak")
+        // 文件名变量替换：{DATE} 只表示日期，{TIME} 只表示时间，避免生成重复时间戳。
+        var now = DateTime.Now;
+        var fileName = (config.FileNameTemplate ?? "{DB}_{DATE}_{TIME}.bak")
             .Replace("{DB}", dbName)
-            .Replace("{DATE}", DateTime.Now.ToString("yyyyMMdd_HHmmss"))
-            .Replace("{TIME}", DateTime.Now.ToString("HHmmss"));
+            .Replace("{DATE}", now.ToString("yyyyMMdd"))
+            .Replace("{TIME}", now.ToString("HHmmss"));
         var filePath = System.IO.Path.Combine(backupDir, fileName);
 
         // 确保备份目录存在

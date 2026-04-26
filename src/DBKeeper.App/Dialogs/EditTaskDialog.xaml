@@ -3,17 +3,24 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
         Title="新建任务" Height="620" Width="500"
-        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        MinHeight="480" MinWidth="480"
+        WindowStartupLocation="CenterOwner" ResizeMode="CanResizeWithGrip"
         ExtendsContentIntoTitleBar="False">
 
     <Grid TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
+        <Border Grid.Row="0" Padding="20,12,20,8" MouseLeftButtonDown="DragBar_MouseLeftButtonDown">
+            <TextBlock Text="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=Title}"
+                       FontSize="16" FontWeight="SemiBold" />
+        </Border>
+
         <!-- 可滚动表单区域 -->
-        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                       CanContentScroll="False"
                       PreviewMouseWheel="ScrollViewer_PreviewMouseWheel">
             <StackPanel Margin="20,12,20,12">
@@ -34,7 +41,8 @@
                 </ComboBox>
 
                 <TextBlock Text="绑定连接" FontSize="13" Margin="0,0,0,4" />
-                <ComboBox x:Name="cmbConnection" DisplayMemberPath="Name" Margin="0,0,0,10" />
+                <ComboBox x:Name="cmbConnection" DisplayMemberPath="Name" Margin="0,0,0,10"
+                          MaxDropDownHeight="260" ScrollViewer.VerticalScrollBarVisibility="Auto" />
 
                 <!-- 调度配置 -->
                 <TextBlock Text="调度配置" FontSize="14" FontWeight="SemiBold" Margin="0,8,0,8"
@@ -87,7 +95,8 @@
                     <TextBlock Text="备份配置" FontSize="14" FontWeight="SemiBold" Margin="0,8,0,8"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     <TextBlock Text="数据库名" FontSize="13" Margin="0,0,0,4" />
-                    <ComboBox x:Name="cmbDbName" IsEditable="True" Margin="0,0,0,2" LostFocus="ValidateField_LostFocus" />
+                    <ComboBox x:Name="cmbDbName" IsEditable="True" Margin="0,0,0,2" LostFocus="ValidateField_LostFocus"
+                              MaxDropDownHeight="260" ScrollViewer.VerticalScrollBarVisibility="Auto" />
                     <TextBlock x:Name="errDbName" Foreground="{DynamicResource ErrorBrush}" FontSize="11" Margin="0,0,0,8" Visibility="Collapsed" />
                     <TextBlock Text="备份类型" FontSize="13" Margin="0,0,0,4" />
                     <ComboBox x:Name="cmbBackupType" Margin="0,0,0,10">
@@ -116,7 +125,8 @@
                     <TextBlock Text="存储过程配置" FontSize="14" FontWeight="SemiBold" Margin="0,8,0,8"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     <TextBlock Text="数据库名" FontSize="13" Margin="0,0,0,4" />
-                    <ComboBox x:Name="cmbSpDb" IsEditable="True" Margin="0,0,0,10" />
+                    <ComboBox x:Name="cmbSpDb" IsEditable="True" Margin="0,0,0,10"
+                              MaxDropDownHeight="260" ScrollViewer.VerticalScrollBarVisibility="Auto" />
                     <TextBlock Text="存储过程名称" FontSize="13" Margin="0,0,0,4" />
                     <ui:TextBox x:Name="txtSpName" PlaceholderText="dbo.usp_DailyReport" Margin="0,0,0,10" />
 
@@ -151,7 +161,8 @@
                     <TextBlock Text="SQL 配置" FontSize="14" FontWeight="SemiBold" Margin="0,8,0,8"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     <TextBlock Text="数据库名" FontSize="13" Margin="0,0,0,4" />
-                    <ComboBox x:Name="cmbSqlDb" IsEditable="True" Margin="0,0,0,10" />
+                    <ComboBox x:Name="cmbSqlDb" IsEditable="True" Margin="0,0,0,10"
+                              MaxDropDownHeight="260" ScrollViewer.VerticalScrollBarVisibility="Auto" />
                     <TextBlock Text="SQL 内容" FontSize="13" Margin="0,0,0,4" />
                     <TextBox x:Name="txtSqlContent" AcceptsReturn="True" TextWrapping="Wrap"
                              Height="100" VerticalScrollBarVisibility="Auto" Margin="0,0,0,10" />
@@ -179,9 +190,7 @@
         </ScrollViewer>
 
         <!-- 底部按钮栏 - 固定 -->
-        <Border Grid.Row="1" Padding="20,12"
-                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0"
-                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
+        <Border Grid.Row="2" Style="{StaticResource DbkDialogFooterBorderStyle}">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                 <ui:Button Content="取消" Margin="0,0,8,0" Click="Cancel_Click" />
                 <ui:Button Content="保存" Appearance="Primary" Click="Save_Click" />

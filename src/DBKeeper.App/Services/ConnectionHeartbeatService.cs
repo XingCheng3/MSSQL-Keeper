@@ -1,6 +1,7 @@
 using DBKeeper.Data;
 using DBKeeper.Data.Repositories;
 using Serilog;
+using System.Collections.Concurrent;
 
 namespace DBKeeper.App.Services;
 
@@ -10,6 +11,7 @@ namespace DBKeeper.App.Services;
 public class ConnectionHeartbeatService
 {
     private readonly IConnectionRepository _repo;
+    private readonly ConcurrentDictionary<int, bool> _statusByConnectionId = new();
     private Timer? _timer;
 
     /// <summary>连接状态变化事件：key=连接ID, value=是否在线</summary>
@@ -34,7 +36,14 @@ public class ConnectionHeartbeatService
         _timer = null;
     }
 
-    private async Task CheckAllAsync()
+    public bool? GetStatus(int connectionId)
+    {
+        return _statusByConnectionId.TryGetValue(connectionId, out var isOnline)
+            ? isOnline
+            : null;
+    }
+
+    public async Task CheckAllAsync()
     {
         try
         {
@@ -42,6 +51,7 @@ public class ConnectionHeartbeatService
             foreach (var conn in connections)
             {
                 var result = await SqlServerClient.TestConnectionAsync(conn);
+                _statusByConnectionId[conn.Id] = result.Success;
                 StatusChanged?.Invoke(conn.Id, result.Success);
             }
         }

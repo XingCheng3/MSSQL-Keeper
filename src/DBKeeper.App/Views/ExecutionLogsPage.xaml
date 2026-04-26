@@ -4,7 +4,7 @@
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       Title="执行日志" Loaded="Page_Loaded">
 
-    <Grid Margin="24" TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+    <Grid Style="{StaticResource DbkPageGridStyle}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -13,15 +13,16 @@
         </Grid.RowDefinitions>
 
         <!-- 标题 -->
-        <DockPanel Grid.Row="0" Margin="0,0,0,12">
-            <TextBlock Text="执行日志" FontSize="22" FontWeight="SemiBold" VerticalAlignment="Center" />
+        <DockPanel Grid.Row="0" Style="{StaticResource DbkPageTitleBarStyle}">
+            <TextBlock Text="执行日志" Style="{StaticResource DbkPageTitleTextStyle}" />
             <ui:Button Content="导出 CSV" DockPanel.Dock="Right" HorizontalAlignment="Right"
                        Click="ExportCsv_Click" />
         </DockPanel>
 
         <!-- 过滤 -->
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,12">
-            <ComboBox x:Name="cmbStatus" Width="100" Margin="0,0,8,0" SelectionChanged="Filter_Changed">
+        <StackPanel Grid.Row="1" Style="{StaticResource DbkFilterBarStyle}">
+            <ComboBox x:Name="cmbStatus" Width="100" Margin="0,0,8,0" SelectionChanged="Filter_Changed"
+                      MaxDropDownHeight="260" ScrollViewer.VerticalScrollBarVisibility="Auto">
                 <ComboBoxItem Content="全部状态" IsSelected="True" />
                 <ComboBoxItem Content="成功" Tag="SUCCESS" />
                 <ComboBoxItem Content="失败" Tag="FAILED" />
@@ -38,17 +39,12 @@
         </StackPanel>
 
         <!-- 日志表格 -->
-        <DataGrid x:Name="logGrid" Grid.Row="2" AutoGenerateColumns="False" IsReadOnly="True"
-                  HeadersVisibility="Column" GridLinesVisibility="None"
-                  SelectionMode="Single" Background="Transparent" BorderThickness="0"
-                  Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                  RowBackground="Transparent"
-                  AlternatingRowBackground="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+        <DataGrid x:Name="logGrid" Grid.Row="2" Style="{StaticResource DbkDataGridStyle}"
+                  SelectionMode="Single"
                   RowDetailsVisibilityMode="VisibleWhenSelected">
             <DataGrid.RowDetailsTemplate>
                 <DataTemplate>
-                    <Border Margin="4,8,4,4" Padding="12,8" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                            CornerRadius="6" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
+                    <Border Style="{StaticResource DbkInlineDetailsBorderStyle}">
                         <StackPanel>
                             <TextBlock Text="错误详情" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,4"
                                        Foreground="{DynamicResource ErrorBrush}"
@@ -82,7 +78,7 @@
                 <DataGridTextColumn Header="摘要" Binding="{Binding Summary}" Width="*" />
             </DataGrid.Columns>
             <DataGrid.RowStyle>
-                <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
+                <Style TargetType="DataGridRow" BasedOn="{StaticResource DbkDataGridRowStyle}">
                     <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
                     <Style.Triggers>
                         <DataTrigger Binding="{Binding Status}" Value="FAILED">

@@ -5,15 +5,15 @@
       xmlns:vm="clr-namespace:DBKeeper.App.ViewModels"
       Title="连接管理" Loaded="Page_Loaded">
 
-    <Grid Margin="24" TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+    <Grid Style="{StaticResource DbkPageGridStyle}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
         <!-- 标题栏 -->
-        <DockPanel Grid.Row="0" Margin="0,0,0,16">
-            <TextBlock Text="连接管理" FontSize="22" FontWeight="SemiBold" VerticalAlignment="Center" />
+        <DockPanel Grid.Row="0" Style="{StaticResource DbkPageTitleBarStyle}">
+            <TextBlock Text="连接管理" Style="{StaticResource DbkPageTitleTextStyle}" />
             <ui:Button Content="+ 新建连接" Appearance="Primary" DockPanel.Dock="Right"
                        HorizontalAlignment="Right" Click="NewConnection_Click" />
         </DockPanel>
@@ -32,7 +32,7 @@
         </StackPanel>
 
         <!-- 连接卡片列表 -->
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
+        <ScrollViewer Grid.Row="1" Style="{StaticResource DbkPageScrollViewerStyle}"
                       PreviewMouseWheel="ScrollViewer_PreviewMouseWheel">
             <ItemsControl x:Name="cardList">
                 <ItemsControl.ItemsPanel>
@@ -42,9 +42,7 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Border Width="340" Margin="0,0,12,12" Padding="20" CornerRadius="8"
-                                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                        <Border Style="{StaticResource DbkConnectionCardBorderStyle}">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
