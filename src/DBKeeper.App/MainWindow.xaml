@@ -35,6 +35,9 @@
             <ui:NavigationViewItem Content="备份"
                                    Icon="{ui:SymbolIcon Database24}"
                                    TargetPageType="{x:Type views:BackupFilesPage}" />
+            <ui:NavigationViewItem Content="空间分析"
+                                   Icon="{ui:SymbolIcon DataHistogram24}"
+                                   TargetPageType="{x:Type views:StorageAnalysisPage}" />
             <ui:NavigationViewItem Content="日志"
                                    Icon="{ui:SymbolIcon DocumentText24}"
                                    TargetPageType="{x:Type views:ExecutionLogsPage}" />

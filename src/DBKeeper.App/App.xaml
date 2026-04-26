@@ -145,6 +145,11 @@
                 <Setter Property="ColumnHeaderStyle" Value="{StaticResource DbkDataGridColumnHeaderStyle}" />
                 <Setter Property="RowStyle" Value="{StaticResource DbkDataGridRowStyle}" />
                 <Setter Property="CellStyle" Value="{StaticResource DbkDataGridCellStyle}" />
+                <Setter Property="EnableRowVirtualization" Value="True" />
+                <Setter Property="EnableColumnVirtualization" Value="True" />
+                <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True" />
+                <Setter Property="VirtualizingPanel.VirtualizationMode" Value="Recycling" />
+                <Setter Property="ScrollViewer.CanContentScroll" Value="True" />
             </Style>
         </ResourceDictionary>
     </Application.Resources>

@@ -64,6 +64,7 @@ public partial class App : Application
         services.AddSingleton<ViewModels.ExecutionLogsViewModel>();
         services.AddSingleton<ViewModels.DashboardViewModel>();
         services.AddSingleton<ViewModels.BackupFilesViewModel>();
+        services.AddSingleton<ViewModels.StorageAnalysisViewModel>();
 
         Services = services.BuildServiceProvider();
 
