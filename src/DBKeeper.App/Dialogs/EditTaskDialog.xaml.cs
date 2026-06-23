@@ -364,17 +364,22 @@ public partial class EditTaskDialog : Wpf.Ui.Controls.FluentWindow
         if (string.IsNullOrWhiteSpace(txtDirectoryTargetDir.Text)) { ShowError("目标目录不能为空"); return null; }
         if (!Directory.Exists(txtDirectorySourceDir.Text.Trim())) { ShowError("源目录不存在"); return null; }
         if (!ValidateDirectorySyncPaths(txtDirectorySourceDir.Text.Trim(), txtDirectoryTargetDir.Text.Trim())) return null;
-        if (!int.TryParse(txtDirectoryRetention.Text, out var retentionDays) || retentionDays <= 0) { ShowError("保留天数必须为正整数"); return null; }
-        if (!int.TryParse(txtDirectoryMinKeep.Text, out var minKeepCount) || minKeepCount < 0) { ShowError("最少保留份数不能小于 0"); return null; }
         if (!int.TryParse(txtDirectoryTimeout.Text, out var timeoutSec) || timeoutSec <= 0) { ShowError("超时秒数必须为正整数"); return null; }
 
         var syncMode = (cmbDirectorySyncMode.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "DIFF";
         var archiveFormat = (cmbDirectoryArchiveFormat.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "ZIP";
         var compressionLevel = (cmbDirectoryCompressionLevel.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "BALANCED";
-        if (syncMode == "ARCHIVE" && ContainsInvalidFileNameChar(txtDirectoryFilePattern.Text))
+        var retentionDays = 0;
+        var minKeepCount = 0;
+        if (syncMode == "ARCHIVE")
         {
-            ShowError("压缩文件名规则包含非法文件名字符");
-            return null;
+            if (ContainsInvalidFileNameChar(txtDirectoryFilePattern.Text))
+            {
+                ShowError("压缩文件名规则包含非法文件名字符");
+                return null;
+            }
+            if (!int.TryParse(txtDirectoryRetention.Text, out retentionDays) || retentionDays <= 0) { ShowError("压缩文件保留天数必须为正整数"); return null; }
+            if (!int.TryParse(txtDirectoryMinKeep.Text, out minKeepCount) || minKeepCount < 0) { ShowError("压缩文件最少保留份数不能小于 0"); return null; }
         }
 
         return JsonSerializer.Serialize(new

@@ -226,32 +226,37 @@
                             </StackPanel>
                             <StackPanel Grid.Column="2">
                                 <TextBlock Text="压缩等级" FontSize="13" Margin="0,0,0,4" />
-                                <ComboBox x:Name="cmbDirectoryCompressionLevel">
+                                <ComboBox x:Name="cmbDirectoryCompressionLevel"
+                                          ToolTip="ZIP 对已压缩文件效果有限；7Z 的压缩等级差异更明显。">
                                     <ComboBoxItem Content="快速" Tag="FAST" />
                                     <ComboBoxItem Content="均衡" Tag="BALANCED" IsSelected="True" />
-                                    <ComboBoxItem Content="最小体积" Tag="SMALLEST" />
+                                    <ComboBoxItem Content="最小体积" Tag="SMALLEST"
+                                                  ToolTip="ZIP 最小体积可能与均衡接近，7Z 效果更明显。" />
                                 </ComboBox>
                             </StackPanel>
                         </Grid>
                         <TextBlock Text="压缩文件名规则" FontSize="13" Margin="0,0,0,4" />
                         <ui:TextBox x:Name="txtDirectoryFilePattern" Text="{}{NAME}_{DATE}_{TIME}.{EXT}" Margin="0,0,0,10" />
+                        <TextBlock Text="SQL 压缩备份、图片、视频等文件再次 ZIP 时可能几乎不会变小。"
+                                   FontSize="11" Margin="0,0,0,10"
+                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                   TextWrapping="Wrap" />
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="8" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="压缩文件保留天数" FontSize="13" Margin="0,0,0,4" />
+                                <ui:TextBox x:Name="txtDirectoryRetention" Text="30" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="压缩文件最少保留份数" FontSize="13" Margin="0,0,0,4" />
+                                <ui:TextBox x:Name="txtDirectoryMinKeep" Text="3" />
+                            </StackPanel>
+                        </Grid>
                     </StackPanel>
-
-                    <Grid Margin="0,0,0,10">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="8" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel>
-                            <TextBlock Text="保留天数" FontSize="13" Margin="0,0,0,4" />
-                            <ui:TextBox x:Name="txtDirectoryRetention" Text="30" />
-                        </StackPanel>
-                        <StackPanel Grid.Column="2">
-                            <TextBlock Text="最少保留份数" FontSize="13" Margin="0,0,0,4" />
-                            <ui:TextBox x:Name="txtDirectoryMinKeep" Text="3" />
-                        </StackPanel>
-                    </Grid>
                     <TextBlock Text="排除规则" FontSize="13" Margin="0,0,0,4" />
                     <ui:TextBox x:Name="txtDirectoryExcludePatterns" PlaceholderText="*.tmp;Thumbs.db;*.log" Margin="0,0,0,10" />
                     <TextBlock Text="超时秒数" FontSize="13" Margin="0,0,0,4" />
