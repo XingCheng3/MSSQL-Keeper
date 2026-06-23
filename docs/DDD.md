@@ -55,8 +55,8 @@ CREATE TABLE connections (
 CREATE TABLE tasks (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     name            TEXT    NOT NULL,       -- 任务名称
-    task_type       TEXT    NOT NULL,       -- BACKUP / PROCEDURE / CUSTOM_SQL / BACKUP_CLEANUP
-    connection_id   INTEGER NOT NULL,       -- 外键 → connections.id
+    task_type       TEXT    NOT NULL,       -- BACKUP / PROCEDURE / CUSTOM_SQL / BACKUP_CLEANUP / DATA_ARCHIVE / DIRECTORY_SYNC
+    connection_id   INTEGER,                -- 外键 → connections.id；本地文件类任务可为空
     is_enabled      INTEGER DEFAULT 1,      -- 0=禁用 1=启用
     schedule_type   TEXT    NOT NULL,       -- DAILY / WEEKLY / MONTHLY / INTERVAL / CRON
     schedule_config TEXT    NOT NULL,       -- JSON，调度参数
@@ -78,6 +78,7 @@ CREATE TABLE tasks (
 CREATE TABLE backup_files (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     task_id         INTEGER NOT NULL,       -- 外键 → tasks.id
+    execution_log_id INTEGER,               -- 外键 → execution_logs.id，用于追溯某次执行生成的文件
     database_name   TEXT    NOT NULL,       -- 数据库名
     file_name       TEXT    NOT NULL,       -- 文件名
     file_path       TEXT    NOT NULL,       -- 完整本地路径
@@ -89,7 +90,8 @@ CREATE TABLE backup_files (
     is_verified     INTEGER DEFAULT 0,      -- 1=已 RESTORE VERIFYONLY
     status          TEXT    DEFAULT 'NORMAL', -- NORMAL / SIZE_ANOMALY / EXPIRED / DELETED
     deleted_at      TEXT,                   -- 实际删除时间
-    FOREIGN KEY (task_id) REFERENCES tasks(id)
+    FOREIGN KEY (task_id) REFERENCES tasks(id),
+    FOREIGN KEY (execution_log_id) REFERENCES execution_logs(id)
 );
 ```
 
@@ -102,7 +104,7 @@ CREATE TABLE execution_logs (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     task_id         INTEGER NOT NULL,       -- 外键 → tasks.id
     task_name       TEXT    NOT NULL,       -- 快照任务名（删除后仍可显示）
-    task_type       TEXT    NOT NULL,       -- BACKUP / PROCEDURE / CUSTOM_SQL / BACKUP_CLEANUP
+    task_type       TEXT    NOT NULL,       -- BACKUP / PROCEDURE / CUSTOM_SQL / BACKUP_CLEANUP / DATA_ARCHIVE / DIRECTORY_SYNC
     trigger_type    TEXT    NOT NULL,       -- SCHEDULED / MANUAL
     started_at      TEXT    NOT NULL,       -- 开始时间
     finished_at     TEXT,                   -- 结束时间
@@ -218,6 +220,95 @@ CREATE TABLE settings (
 }
 ```
 
+**DIRECTORY_SYNC**：
+```json
+{
+  "source_dir": "D:\\Photos",
+  "target_dir": "E:\\Backup\\Photos",
+  "sync_mode": "DIFF",
+  "archive_format": "ZIP",
+  "compression_level": "BALANCED",
+  "file_name_template": "{NAME}_{DATE}_{TIME}.{EXT}",
+  "retention_days": 30,
+  "min_keep_count": 3,
+  "include_subdirectories": true,
+  "overwrite_changed_files": true,
+  "exclude_patterns": "*.tmp;*.log",
+  "timeout_sec": 1800
+}
+```
+
+字段说明：
+
+| 字段 | 说明 |
+|------|------|
+| `source_dir` | 源目录，本地路径 |
+| `target_dir` | 目标目录或压缩归档输出目录 |
+| `sync_mode` | `DIFF` / `FULL` / `ARCHIVE` |
+| `archive_format` | `ZIP` / `7Z`，仅 `ARCHIVE` 模式使用 |
+| `compression_level` | `FAST` / `BALANCED` / `SMALLEST` |
+| `file_name_template` | 压缩归档文件名模板，支持 `{NAME}`、`{DATE}`、`{TIME}`、`{EXT}` |
+| `retention_days` | 备份记录过期天数 |
+| `min_keep_count` | 自动清理最少保留份数 |
+| `include_subdirectories` | 是否包含子目录 |
+| `overwrite_changed_files` | 差量同步时是否覆盖变更文件 |
+| `exclude_patterns` | 分号分隔的文件排除规则 |
+| `timeout_sec` | 执行超时秒数 |
+
+DIRECTORY_SYNC 第一版约束：
+
+- 差量同步只复制新增和变更文件，不删除目标多余文件。
+- 全量同步只清空配置的目标目录，禁止清空磁盘根目录。
+- 源目录与目标目录不能相同，不能互相包含。
+- ZIP 使用 .NET 内置压缩能力；7Z 依赖本机可执行的 `7z.exe`。
+- 压缩归档结果和目录同步结果纳入 `backup_files` 统一管理，`backup_type` 使用 `DIR_DIFF`、`DIR_FULL`、`DIR_ZIP`、`DIR_7Z`。
+
+**DATA_ARCHIVE**：
+```json
+{
+  "source_database": "MES_DB",
+  "source_schema": "dbo",
+  "source_table": "TraceLog",
+  "target_database": "MES_History",
+  "target_schema": "dbo",
+  "target_table": "TraceLog",
+  "date_column": "CreateTime",
+  "primary_key_column": "Id",
+  "retention_type": "MONTH",
+  "retention_value": 3,
+  "batch_size": 5000,
+  "max_rows_per_run": 50000,
+  "delete_after_copy": true,
+  "skip_existing_rows": true,
+  "timeout_sec": 1800
+}
+```
+
+字段说明：
+
+| 字段 | 说明 |
+|------|------|
+| `source_database` / `target_database` | 同一 SQL Server 实例内的源库和历史库 |
+| `source_schema` / `target_schema` | 默认 `dbo` |
+| `source_table` / `target_table` | 源表和历史表，历史表默认同源表 |
+| `date_column` | 判断归档范围的时间字段 |
+| `primary_key_column` | 分批、去重和删除使用的单主键字段 |
+| `retention_type` | `DAY` 或 `MONTH` |
+| `retention_value` | 保留数量，例如 90 天或 3 个月 |
+| `batch_size` | 单批处理行数，默认 5000 |
+| `max_rows_per_run` | 单次任务最大处理行数，默认 50000 |
+| `delete_after_copy` | 复制到历史库后是否删除源表数据 |
+| `skip_existing_rows` | 历史库已有相同主键时是否跳过 |
+| `timeout_sec` | 执行超时秒数 |
+
+DATA_ARCHIVE 第一版约束：
+
+- 仅支持同一 SQL Server 实例内跨库归档。
+- 仅支持单表、单主键字段。
+- 源表与历史表结构必须兼容，程序不自动创建历史表。
+- 建议业务库为 `(date_column, primary_key_column)` 建索引，减少扫描与锁等待。
+- 迁移执行器按批次提交事务，避免长事务和大范围锁。
+
 ---
 
 ## 4. 索引
@@ -230,6 +321,7 @@ CREATE INDEX idx_logs_status     ON execution_logs(status);
 
 -- 备份文件：按任务和状态查询
 CREATE INDEX idx_backup_task_id    ON backup_files(task_id);
+CREATE INDEX idx_backup_execution_log_id ON backup_files(execution_log_id);
 CREATE INDEX idx_backup_status     ON backup_files(status);
 CREATE INDEX idx_backup_expires_at ON backup_files(expires_at);
 

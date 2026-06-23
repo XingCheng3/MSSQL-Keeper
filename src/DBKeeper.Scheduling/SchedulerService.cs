@@ -45,6 +45,8 @@ public class SchedulerService
             new BackupExecutor(),
             new ProcedureExecutor(),
             new SqlExecutor(),
+            new DataArchiveExecutor(),
+            new DirectorySyncExecutor(),
             new CleanupExecutor(backupRepo)
         }.ToDictionary(e => e.TaskType);
 
@@ -265,10 +267,13 @@ public class SchedulerService
     /// <summary>核心执行逻辑</summary>
     public async Task ExecuteTaskAsync(TaskItem task, string triggerType, RunningTaskState state)
     {
-        var conn = task.ConnectionId.HasValue
+        if (!_executors.TryGetValue(task.TaskType, out var executor))
+            throw new InvalidOperationException($"未知任务类型: {task.TaskType}");
+
+        var conn = executor.RequiresConnection && task.ConnectionId.HasValue
             ? await _connRepo.GetByIdAsync(task.ConnectionId.Value)
             : null;
-        if (conn == null)
+        if (executor.RequiresConnection && conn == null)
         {
             Log.Error("任务 {TaskName} 的连接不存在 (ID={ConnId})", task.Name, task.ConnectionId);
             var startedAt = DateTime.Now.ToString("O");
@@ -301,9 +306,6 @@ public class SchedulerService
 
         try
         {
-            if (!_executors.TryGetValue(task.TaskType, out var executor))
-                throw new InvalidOperationException($"未知任务类型: {task.TaskType}");
-
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(state.Token);
             timeoutCts.CancelAfter(TimeSpan.FromMinutes(30));
 
@@ -321,7 +323,7 @@ public class SchedulerService
             await _logRepo.UpdateFinishAsync(log.Id, status, (int)sw.ElapsedMilliseconds, result.Summary, result.ErrorDetail);
             await _taskRepo.UpdateLastRunAsync(task.Id, status, task.NextRunAt);
 
-            if (task.TaskType == "BACKUP" && result.Metadata != null)
+            if (task.TaskType is "BACKUP" or "DIRECTORY_SYNC" && result.Metadata != null)
             {
                 var metadata = result.Metadata;
                 var actualFilePath = metadata.GetValueOrDefault("FilePath") as string;
@@ -333,7 +335,7 @@ public class SchedulerService
                     var isVerified = metadata.TryGetValue("IsVerified", out var isVerifiedValue)
                         && isVerifiedValue is bool verified
                         && verified;
-                    await RecordBackupFileAsync(task, actualFilePath, isVerified);
+                    await RecordBackupFileAsync(task, log.Id, actualFilePath, isVerified, metadata);
                 }
             }
         }
@@ -411,11 +413,21 @@ public class SchedulerService
         await _taskRepo.UpdateLastRunAsync(task.Id, "CANCELLED", task.NextRunAt);
     }
 
-    private async Task RecordBackupFileAsync(TaskItem task, string? actualFilePath, bool isVerified)
+    private async Task RecordBackupFileAsync(
+        TaskItem task,
+        int executionLogId,
+        string? actualFilePath,
+        bool isVerified,
+        IReadOnlyDictionary<string, object> metadata)
     {
+        if (task.TaskType == "DIRECTORY_SYNC")
+        {
+            await RecordDirectoryBackupFileAsync(task, executionLogId, actualFilePath, isVerified, metadata);
+            return;
+        }
+
         var config = JsonSerializer.Deserialize<BackupConfig>(task.TaskConfig);
         if (config == null) return;
-
         string filePath;
         string fileName;
         if (!string.IsNullOrEmpty(actualFilePath))
@@ -438,6 +450,9 @@ public class SchedulerService
         var bf = new BackupFile
         {
             TaskId = task.Id,
+            ExecutionLogId = executionLogId,
+            SourceType = "DATABASE",
+            SourceName = config.DatabaseName,
             DatabaseName = config.DatabaseName,
             FileName = fileName,
             FilePath = filePath,
@@ -449,6 +464,93 @@ public class SchedulerService
             Status = "NORMAL"
         };
         await _backupRepo.InsertAsync(bf);
+    }
+
+    private async Task RecordDirectoryBackupFileAsync(
+        TaskItem task,
+        int executionLogId,
+        string? actualFilePath,
+        bool isVerified,
+        IReadOnlyDictionary<string, object> metadata)
+    {
+        var config = JsonSerializer.Deserialize<DirectorySyncConfig>(task.TaskConfig);
+        if (config == null) return;
+
+        var filePath = !string.IsNullOrWhiteSpace(actualFilePath) ? actualFilePath : config.TargetDir;
+        if (!File.Exists(filePath) && !Directory.Exists(filePath)) return;
+
+        var sourceName = GetMetadataString(metadata, "SourceName");
+        if (string.IsNullOrWhiteSpace(sourceName))
+            sourceName = Directory.Exists(config.SourceDir) ? new DirectoryInfo(config.SourceDir).Name : config.SourceDir;
+        if (string.IsNullOrWhiteSpace(sourceName))
+            sourceName = "目录备份";
+
+        var fileName = GetMetadataString(metadata, "FileName");
+        if (string.IsNullOrWhiteSpace(fileName))
+            fileName = File.Exists(filePath) ? Path.GetFileName(filePath) : new DirectoryInfo(filePath).Name;
+
+        var backupType = GetMetadataString(metadata, "BackupType");
+        if (string.IsNullOrWhiteSpace(backupType))
+            backupType = config.SyncMode?.ToUpperInvariant() switch
+            {
+                "FULL" => "DIR_FULL",
+                "ARCHIVE" => $"DIR_{(string.IsNullOrWhiteSpace(config.ArchiveFormat) ? "ZIP" : config.ArchiveFormat.ToUpperInvariant())}",
+                _ => "DIR_DIFF"
+            };
+
+        var sizeBytes = GetMetadataLong(metadata, "FileSizeBytes");
+        sizeBytes ??= File.Exists(filePath) ? new FileInfo(filePath).Length : GetDirectorySize(filePath);
+
+        var bf = new BackupFile
+        {
+            TaskId = task.Id,
+            ExecutionLogId = executionLogId,
+            SourceType = "DIRECTORY",
+            SourceName = sourceName,
+            DatabaseName = sourceName,
+            FileName = fileName,
+            FilePath = filePath,
+            FileSizeBytes = sizeBytes,
+            BackupType = backupType,
+            CreatedAt = DateTime.Now.ToString("O"),
+            ExpiresAt = config.RetentionDays > 0 ? DateTime.Now.AddDays(config.RetentionDays).ToString("O") : null,
+            IsVerified = isVerified,
+            Status = isVerified ? "NORMAL" : "WARNING"
+        };
+        await _backupRepo.InsertAsync(bf);
+    }
+
+    private static string? GetMetadataString(IReadOnlyDictionary<string, object> metadata, string key)
+    {
+        return metadata.TryGetValue(key, out var value) ? value?.ToString() : null;
+    }
+
+    private static long? GetMetadataLong(IReadOnlyDictionary<string, object> metadata, string key)
+    {
+        if (!metadata.TryGetValue(key, out var value) || value == null)
+            return null;
+
+        return value switch
+        {
+            long l => l,
+            int i => i,
+            double d => (long)d,
+            decimal m => (long)m,
+            _ => long.TryParse(value.ToString(), out var parsed) ? parsed : null
+        };
+    }
+
+    private static long GetDirectorySize(string directory)
+    {
+        if (!Directory.Exists(directory))
+            return 0;
+
+        return Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories)
+            .Sum(file =>
+            {
+                try { return new FileInfo(file).Length; }
+                catch { return 0; }
+            });
     }
 
     /// <summary>内部调度条目</summary>

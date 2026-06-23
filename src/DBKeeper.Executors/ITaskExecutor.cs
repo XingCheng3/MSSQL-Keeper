@@ -10,8 +10,11 @@ public interface ITaskExecutor
     /// <summary>支持的任务类型</summary>
     string TaskType { get; }
 
+    /// <summary>是否需要 SQL Server 连接</summary>
+    bool RequiresConnection => true;
+
     /// <summary>执行任务并返回结果</summary>
-    Task<ExecutionResult> ExecuteAsync(TaskItem task, Connection connection, CancellationToken cancellationToken = default);
+    Task<ExecutionResult> ExecuteAsync(TaskItem task, Connection? connection, CancellationToken cancellationToken = default);
 }
 
 /// <summary>

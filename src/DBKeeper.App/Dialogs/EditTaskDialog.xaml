@@ -38,6 +38,7 @@
                     <ComboBoxItem Content="存储过程" Tag="PROCEDURE" />
                     <ComboBoxItem Content="自定义 SQL" Tag="CUSTOM_SQL" />
                     <ComboBoxItem Content="备份清理" Tag="BACKUP_CLEANUP" />
+                    <ComboBoxItem Content="数据归档" Tag="DATA_ARCHIVE" />
                 </ComboBox>
 
                 <TextBlock Text="绑定连接" FontSize="13" Margin="0,0,0,4" />
@@ -185,6 +186,67 @@
                     <ui:TextBox x:Name="txtCleanupRetention" Text="30" Margin="0,0,0,10" />
                     <TextBlock Text="最少保留份数" FontSize="13" Margin="0,0,0,4" />
                     <ui:TextBox x:Name="txtMinKeep" Text="3" Margin="0,0,0,10" />
+                </StackPanel>
+
+                <!-- 数据归档配置 -->
+                <StackPanel x:Name="panelArchive" Visibility="Collapsed">
+                    <TextBlock Text="数据归档配置" FontSize="14" FontWeight="SemiBold" Margin="0,8,0,8"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Text="源数据库" FontSize="13" Margin="0,0,0,4" />
+                    <ComboBox x:Name="cmbArchiveSourceDb" IsEditable="True" Margin="0,0,0,10"
+                              MaxDropDownHeight="260" ScrollViewer.VerticalScrollBarVisibility="Auto" />
+                    <TextBlock Text="源架构" FontSize="13" Margin="0,0,0,4" />
+                    <ui:TextBox x:Name="txtArchiveSourceSchema" Text="dbo" Margin="0,0,0,10" />
+                    <TextBlock Text="源表" FontSize="13" Margin="0,0,0,4" />
+                    <ui:TextBox x:Name="txtArchiveSourceTable" PlaceholderText="TraceLog" Margin="0,0,0,10" />
+
+                    <TextBlock Text="历史数据库" FontSize="13" Margin="0,0,0,4" />
+                    <ComboBox x:Name="cmbArchiveTargetDb" IsEditable="True" Margin="0,0,0,10"
+                              MaxDropDownHeight="260" ScrollViewer.VerticalScrollBarVisibility="Auto" />
+                    <TextBlock Text="历史架构" FontSize="13" Margin="0,0,0,4" />
+                    <ui:TextBox x:Name="txtArchiveTargetSchema" Text="dbo" Margin="0,0,0,10" />
+                    <TextBlock Text="历史表" FontSize="13" Margin="0,0,0,4" />
+                    <ui:TextBox x:Name="txtArchiveTargetTable" PlaceholderText="TraceLog" Margin="0,0,0,10" />
+
+                    <TextBlock Text="时间字段" FontSize="13" Margin="0,0,0,4" />
+                    <ui:TextBox x:Name="txtArchiveDateColumn" PlaceholderText="CreateTime" Margin="0,0,0,10" />
+                    <TextBlock Text="主键字段" FontSize="13" Margin="0,0,0,4" />
+                    <ui:TextBox x:Name="txtArchivePrimaryKey" PlaceholderText="Id" Margin="0,0,0,10" />
+
+                    <Grid Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="8" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="保留方式" FontSize="13" Margin="0,0,0,4" />
+                            <ComboBox x:Name="cmbArchiveRetentionType">
+                                <ComboBoxItem Content="按月" Tag="MONTH" IsSelected="True" />
+                                <ComboBoxItem Content="按天" Tag="DAY" />
+                            </ComboBox>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="保留值" FontSize="13" Margin="0,0,0,4" />
+                            <ui:TextBox x:Name="txtArchiveRetentionValue" Text="3" />
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Text="每批行数" FontSize="13" Margin="0,0,0,4" />
+                    <ui:TextBox x:Name="txtArchiveBatchSize" Text="5000" Margin="0,0,0,10" />
+                    <TextBlock Text="单次最大行数" FontSize="13" Margin="0,0,0,4" />
+                    <ui:TextBox x:Name="txtArchiveMaxRows" Text="50000" Margin="0,0,0,10" />
+                    <TextBlock Text="超时秒数" FontSize="13" Margin="0,0,0,4" />
+                    <ui:TextBox x:Name="txtArchiveTimeout" Text="1800" Margin="0,0,0,10" />
+
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                        <CheckBox x:Name="chkArchiveDeleteAfterCopy" Content="迁移成功后删除源数据" IsChecked="True" Margin="0,0,16,0" />
+                        <CheckBox x:Name="chkArchiveSkipExisting" Content="历史库已存在则跳过" IsChecked="True" />
+                    </StackPanel>
+                    <TextBlock Text="建议源表建立“时间字段 + 主键字段”索引。系统会分批迁移并按批提交，避免长事务和大范围锁。"
+                               FontSize="11" Margin="0,0,0,10"
+                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                               TextWrapping="Wrap" />
                 </StackPanel>
 
                 <!-- 错误提示 -->

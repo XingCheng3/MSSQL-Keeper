@@ -6,6 +6,7 @@ public interface IExecutionLogRepository
 {
     Task<int> InsertAsync(ExecutionLog log);
     Task UpdateFinishAsync(int id, string status, int durationMs, string? summary, string? errorDetail);
+    Task<List<ExecutionLog>> GetByTaskIdAsync(int taskId, int count = 50);
     Task<(List<ExecutionLog> Items, int Total)> GetPagedAsync(int page, int pageSize, string? taskName = null, string? status = null, string? startFrom = null, string? startTo = null);
     Task<List<ExecutionLog>> GetRecentAsync(int count);
     Task CleanupAsync(int retentionDays);

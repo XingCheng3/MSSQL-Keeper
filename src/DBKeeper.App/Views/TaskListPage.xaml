@@ -29,6 +29,7 @@
                 <ComboBoxItem Content="存储过程" Tag="PROCEDURE" />
                 <ComboBoxItem Content="自定义SQL" Tag="CUSTOM_SQL" />
                 <ComboBoxItem Content="备份清理" Tag="BACKUP_CLEANUP" />
+                <ComboBoxItem Content="数据归档" Tag="DATA_ARCHIVE" />
             </ComboBox>
             <ComboBox x:Name="cmbStatus" Width="120" Margin="0,0,8,0" SelectionChanged="Filter_Changed"
                       MaxDropDownHeight="220" ScrollViewer.VerticalScrollBarVisibility="Auto">
@@ -75,7 +76,7 @@
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
-                <DataGridTemplateColumn Header="操作" Width="180">
+                <DataGridTemplateColumn Header="操作" Width="220">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <StackPanel Orientation="Horizontal">
@@ -92,6 +93,9 @@
                                 <ui:Button ToolTip="编辑" Margin="0,0,4,0"
                                            Icon="{ui:SymbolIcon Edit24}"
                                            Tag="{Binding}" Click="EditTask_Click" />
+                                <ui:Button ToolTip="历史记录" Margin="0,0,4,0"
+                                           Icon="{ui:SymbolIcon Clock24}"
+                                           Tag="{Binding}" Click="ViewHistory_Click" />
                                 <ui:Button ToolTip="删除" Appearance="Danger"
                                            Icon="{ui:SymbolIcon Delete24}"
                                            Tag="{Binding}" Click="DeleteTask_Click" />

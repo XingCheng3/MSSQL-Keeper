@@ -15,8 +15,11 @@ public class BackupExecutor : ITaskExecutor
 
     public string TaskType => "BACKUP";
 
-    public async Task<ExecutionResult> ExecuteAsync(TaskItem task, Connection connection, CancellationToken cancellationToken = default)
+    public async Task<ExecutionResult> ExecuteAsync(TaskItem task, Connection? connection, CancellationToken cancellationToken = default)
     {
+        if (connection == null)
+            return ExecutionResult.Fail("备份任务缺少数据库连接");
+
         var config = JsonSerializer.Deserialize<BackupConfig>(task.TaskConfig)!;
         var dbName = config.DatabaseName;
         var backupDir = config.BackupDir;

@@ -121,6 +121,30 @@ public partial class EditTaskDialog : Wpf.Ui.Controls.FluentWindow
                     if (TryGetPropertyLoose(tc, out var mk, "MinKeepCount", "min_keep_count") && TryReadInt32(mk, out var minKeepCount))
                         txtMinKeep.Text = minKeepCount.ToString();
                     break;
+                case "DATA_ARCHIVE":
+                    if (TryGetPropertyLoose(tc, out var sourceDb, "SourceDatabase", "source_database")) cmbArchiveSourceDb.Text = sourceDb.GetString();
+                    if (TryGetPropertyLoose(tc, out var sourceSchema, "SourceSchema", "source_schema")) txtArchiveSourceSchema.Text = sourceSchema.GetString() ?? "dbo";
+                    if (TryGetPropertyLoose(tc, out var sourceTable, "SourceTable", "source_table")) txtArchiveSourceTable.Text = sourceTable.GetString();
+                    if (TryGetPropertyLoose(tc, out var targetDb, "TargetDatabase", "target_database")) cmbArchiveTargetDb.Text = targetDb.GetString();
+                    if (TryGetPropertyLoose(tc, out var targetSchema, "TargetSchema", "target_schema")) txtArchiveTargetSchema.Text = targetSchema.GetString() ?? "dbo";
+                    if (TryGetPropertyLoose(tc, out var targetTable, "TargetTable", "target_table")) txtArchiveTargetTable.Text = targetTable.GetString();
+                    if (TryGetPropertyLoose(tc, out var dateColumn, "DateColumn", "date_column")) txtArchiveDateColumn.Text = dateColumn.GetString();
+                    if (TryGetPropertyLoose(tc, out var pkColumn, "PrimaryKeyColumn", "primary_key_column")) txtArchivePrimaryKey.Text = pkColumn.GetString();
+                    if (TryGetPropertyLoose(tc, out var retentionType, "RetentionType", "retention_type"))
+                        ComboBoxHelper.SelectByTag(cmbArchiveRetentionType, retentionType.GetString() ?? "MONTH");
+                    if (TryGetPropertyLoose(tc, out var retentionValue, "RetentionValue", "retention_value") && TryReadInt32(retentionValue, out var archiveRetentionValue))
+                        txtArchiveRetentionValue.Text = archiveRetentionValue.ToString();
+                    if (TryGetPropertyLoose(tc, out var batchSize, "BatchSize", "batch_size") && TryReadInt32(batchSize, out var archiveBatchSize))
+                        txtArchiveBatchSize.Text = archiveBatchSize.ToString();
+                    if (TryGetPropertyLoose(tc, out var maxRows, "MaxRowsPerRun", "max_rows_per_run") && TryReadInt32(maxRows, out var archiveMaxRows))
+                        txtArchiveMaxRows.Text = archiveMaxRows.ToString();
+                    if (TryGetPropertyLoose(tc, out var archiveTimeout, "TimeoutSec", "timeout_sec") && TryReadInt32(archiveTimeout, out var archiveTimeoutSec))
+                        txtArchiveTimeout.Text = archiveTimeoutSec.ToString();
+                    if (TryGetPropertyLoose(tc, out var deleteAfterCopy, "DeleteAfterCopy", "delete_after_copy") && TryReadBoolean(deleteAfterCopy, out var archiveDeleteAfterCopy))
+                        chkArchiveDeleteAfterCopy.IsChecked = archiveDeleteAfterCopy;
+                    if (TryGetPropertyLoose(tc, out var skipExisting, "SkipExistingRows", "skip_existing_rows") && TryReadBoolean(skipExisting, out var archiveSkipExisting))
+                        chkArchiveSkipExisting.IsChecked = archiveSkipExisting;
+                    break;
             }
         }
         catch (Exception ex) { Log.Warning(ex, "解析任务配置失败，使用默认值"); }
@@ -136,6 +160,7 @@ public partial class EditTaskDialog : Wpf.Ui.Controls.FluentWindow
         panelProcedure.Visibility = type == "PROCEDURE" ? Visibility.Visible : Visibility.Collapsed;
         panelSql.Visibility = type == "CUSTOM_SQL" ? Visibility.Visible : Visibility.Collapsed;
         panelCleanup.Visibility = type == "BACKUP_CLEANUP" ? Visibility.Visible : Visibility.Collapsed;
+        panelArchive.Visibility = type == "DATA_ARCHIVE" ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void ScheduleType_Changed(object sender, SelectionChangedEventArgs e)
@@ -272,9 +297,51 @@ public partial class EditTaskDialog : Wpf.Ui.Controls.FluentWindow
                     RetentionDays = int.TryParse(txtCleanupRetention.Text, out var cr) ? cr : 30,
                     MinKeepCount = int.TryParse(txtMinKeep.Text, out var mk) ? mk : 3
                 });
+            case "DATA_ARCHIVE":
+                return BuildArchiveTaskConfig();
             default:
                 return "{}";
         }
+    }
+
+    private string? BuildArchiveTaskConfig()
+    {
+        if (string.IsNullOrWhiteSpace(cmbArchiveSourceDb.Text)) { ShowError("源数据库不能为空"); return null; }
+        if (string.IsNullOrWhiteSpace(txtArchiveSourceSchema.Text)) { ShowError("源架构不能为空"); return null; }
+        if (string.IsNullOrWhiteSpace(txtArchiveSourceTable.Text)) { ShowError("源表不能为空"); return null; }
+        if (string.IsNullOrWhiteSpace(cmbArchiveTargetDb.Text)) { ShowError("历史数据库不能为空"); return null; }
+        if (string.IsNullOrWhiteSpace(txtArchiveTargetSchema.Text)) { ShowError("历史架构不能为空"); return null; }
+        if (string.IsNullOrWhiteSpace(txtArchiveDateColumn.Text)) { ShowError("时间字段不能为空"); return null; }
+        if (string.IsNullOrWhiteSpace(txtArchivePrimaryKey.Text)) { ShowError("主键字段不能为空"); return null; }
+        if (!int.TryParse(txtArchiveRetentionValue.Text, out var retentionValue) || retentionValue <= 0) { ShowError("保留值必须为正整数"); return null; }
+        if (!int.TryParse(txtArchiveBatchSize.Text, out var batchSize) || batchSize <= 0) { ShowError("每批行数必须为正整数"); return null; }
+        if (!int.TryParse(txtArchiveMaxRows.Text, out var maxRows) || maxRows <= 0) { ShowError("单次最大行数必须为正整数"); return null; }
+        if (!int.TryParse(txtArchiveTimeout.Text, out var timeoutSec) || timeoutSec <= 0) { ShowError("超时秒数必须为正整数"); return null; }
+        if (maxRows < batchSize) { ShowError("单次最大行数不能小于每批行数"); return null; }
+
+        var retentionType = (cmbArchiveRetentionType.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "MONTH";
+        var sourceTable = txtArchiveSourceTable.Text.Trim();
+        var targetTable = string.IsNullOrWhiteSpace(txtArchiveTargetTable.Text)
+            ? sourceTable
+            : txtArchiveTargetTable.Text.Trim();
+        return JsonSerializer.Serialize(new
+        {
+            SourceDatabase = cmbArchiveSourceDb.Text.Trim(),
+            SourceSchema = txtArchiveSourceSchema.Text.Trim(),
+            SourceTable = sourceTable,
+            TargetDatabase = cmbArchiveTargetDb.Text.Trim(),
+            TargetSchema = txtArchiveTargetSchema.Text.Trim(),
+            TargetTable = targetTable,
+            DateColumn = txtArchiveDateColumn.Text.Trim(),
+            PrimaryKeyColumn = txtArchivePrimaryKey.Text.Trim(),
+            RetentionType = retentionType,
+            RetentionValue = retentionValue,
+            BatchSize = batchSize,
+            MaxRowsPerRun = maxRows,
+            DeleteAfterCopy = chkArchiveDeleteAfterCopy.IsChecked == true,
+            SkipExistingRows = chkArchiveSkipExisting.IsChecked == true,
+            TimeoutSec = timeoutSec
+        });
     }
 
     private static bool ContainsInvalidFileNameChar(string fileNameTemplate)
@@ -379,6 +446,8 @@ public partial class EditTaskDialog : Wpf.Ui.Controls.FluentWindow
             cmbDbName.ItemsSource = databases;
             cmbSpDb.ItemsSource = databases;
             cmbSqlDb.ItemsSource = databases;
+            cmbArchiveSourceDb.ItemsSource = databases;
+            cmbArchiveTargetDb.ItemsSource = databases;
             errorText.Visibility = Visibility.Collapsed;
         }
         catch (Exception ex)
@@ -387,6 +456,8 @@ public partial class EditTaskDialog : Wpf.Ui.Controls.FluentWindow
             cmbDbName.ItemsSource = null;
             cmbSpDb.ItemsSource = null;
             cmbSqlDb.ItemsSource = null;
+            cmbArchiveSourceDb.ItemsSource = null;
+            cmbArchiveTargetDb.ItemsSource = null;
             ShowError($"加载数据库列表失败：{ex.Message}");
         }
     }

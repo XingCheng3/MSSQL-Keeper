@@ -84,6 +84,9 @@ public class DbInitializer
             CREATE TABLE IF NOT EXISTS backup_files (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
                 task_id         INTEGER,
+                execution_log_id INTEGER,
+                source_type     TEXT    DEFAULT 'DATABASE',
+                source_name     TEXT,
                 database_name   TEXT    NOT NULL,
                 file_name       TEXT    NOT NULL,
                 file_path       TEXT    NOT NULL,
@@ -150,6 +153,9 @@ public class DbInitializer
             Execute(conn, "UPDATE tasks SET connection_id = NULL WHERE connection_id = 0;");
             Execute(conn, "UPDATE backup_files SET task_id = NULL WHERE task_id = 0;");
             Execute(conn, "UPDATE execution_logs SET task_id = NULL WHERE task_id = 0;");
+            AddColumnIfMissing(conn, "backup_files", "execution_log_id", "INTEGER");
+            AddColumnIfMissing(conn, "backup_files", "source_type", "TEXT DEFAULT 'DATABASE'");
+            AddColumnIfMissing(conn, "backup_files", "source_name", "TEXT");
         }
         finally
         {
@@ -210,6 +216,9 @@ public class DbInitializer
             CREATE TABLE backup_files (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
                 task_id         INTEGER,
+                execution_log_id INTEGER,
+                source_type     TEXT    DEFAULT 'DATABASE',
+                source_name     TEXT,
                 database_name   TEXT    NOT NULL,
                 file_name       TEXT    NOT NULL,
                 file_path       TEXT    NOT NULL,
@@ -225,9 +234,9 @@ public class DbInitializer
             );
             """);
         Execute(conn, """
-            INSERT INTO backup_files (id, task_id, database_name, file_name, file_path, file_size_bytes, backup_type,
+            INSERT INTO backup_files (id, task_id, execution_log_id, source_type, source_name, database_name, file_name, file_path, file_size_bytes, backup_type,
                                       created_at, expires_at, is_pinned, is_verified, status, deleted_at)
-            SELECT id, NULLIF(task_id, 0), database_name, file_name, file_path, file_size_bytes, backup_type,
+            SELECT id, NULLIF(task_id, 0), NULL, 'DATABASE', database_name, database_name, file_name, file_path, file_size_bytes, backup_type,
                    created_at, expires_at, is_pinned, is_verified, status, deleted_at
             FROM backup_files_old;
             """);
@@ -269,6 +278,7 @@ public class DbInitializer
         Execute(conn, "CREATE INDEX IF NOT EXISTS idx_logs_started_at ON execution_logs(started_at);");
         Execute(conn, "CREATE INDEX IF NOT EXISTS idx_logs_status     ON execution_logs(status);");
         Execute(conn, "CREATE INDEX IF NOT EXISTS idx_backup_task_id    ON backup_files(task_id);");
+        Execute(conn, "CREATE INDEX IF NOT EXISTS idx_backup_execution_log_id ON backup_files(execution_log_id);");
         Execute(conn, "CREATE INDEX IF NOT EXISTS idx_backup_status     ON backup_files(status);");
         Execute(conn, "CREATE INDEX IF NOT EXISTS idx_backup_expires_at ON backup_files(expires_at);");
         Execute(conn, "CREATE INDEX IF NOT EXISTS idx_tasks_type    ON tasks(task_type);");
@@ -307,6 +317,28 @@ public class DbInitializer
         using var cmd = conn.CreateCommand();
         cmd.CommandText = sql;
         cmd.ExecuteNonQuery();
+    }
+
+    private static void AddColumnIfMissing(SqliteConnection conn, string tableName, string columnName, string definition)
+    {
+        if (ColumnExists(conn, tableName, columnName))
+            return;
+
+        Execute(conn, $"ALTER TABLE {tableName} ADD COLUMN {columnName} {definition};");
+    }
+
+    private static bool ColumnExists(SqliteConnection conn, string tableName, string columnName)
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"PRAGMA table_info({tableName});";
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            if (string.Equals(reader.GetString(1), columnName, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
     }
 }
 

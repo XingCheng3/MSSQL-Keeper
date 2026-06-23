@@ -175,6 +175,75 @@ public class SqlServerClient
         return $"SQL 批次执行完成，共 {batches.Count} 段，累计影响 {totalRowsAffected} 行";
     }
 
+    /// <summary>按时间字段分批归档生产表数据到历史库。</summary>
+    public static async Task<DataArchiveResult> ExecuteDataArchiveAsync(
+        Connection conn,
+        DataArchiveConfig config,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateDataArchiveConfig(config);
+        var cutoff = CalculateArchiveCutoff(config);
+        var batchSize = Math.Clamp(config.BatchSize, 1, 50000);
+        var maxRowsPerRun = Math.Clamp(config.MaxRowsPerRun, batchSize, 1000000);
+        var timeoutSec = Math.Clamp(config.TimeoutSec, 30, 86400);
+
+        await using var sqlConn = new SqlConnection(BuildConnectionString(conn, "master"));
+        await sqlConn.OpenAsync(cancellationToken);
+
+        var sourceColumns = await QueryArchiveColumnsAsync(
+            sqlConn, config.SourceDatabase, config.SourceSchema, config.SourceTable, timeoutSec, cancellationToken);
+        var targetColumns = await QueryArchiveColumnsAsync(
+            sqlConn, config.TargetDatabase, config.TargetSchema, config.TargetTable, timeoutSec, cancellationToken);
+        ValidateArchiveColumns(config, sourceColumns, targetColumns);
+
+        var insertColumns = sourceColumns
+            .Where(c => !c.IsComputed && !c.IsRowVersion)
+            .Select(c => c.Name)
+            .ToList();
+        var targetIdentityColumns = targetColumns
+            .Where(c => c.IsIdentity)
+            .Select(c => c.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var needsIdentityInsert = insertColumns.Any(targetIdentityColumns.Contains);
+        var batchSql = BuildArchiveBatchSql(config, insertColumns, needsIdentityInsert);
+
+        var result = new DataArchiveResult { Cutoff = cutoff };
+        while (result.CandidateRows < maxRowsPerRun)
+        {
+            var currentBatchSize = Math.Min(batchSize, maxRowsPerRun - result.CandidateRows);
+            await using var cmd = new SqlCommand(batchSql, sqlConn) { CommandTimeout = timeoutSec };
+            cmd.Parameters.Add("@Cutoff", SqlDbType.DateTime2).Value = cutoff;
+            cmd.Parameters.Add("@BatchSize", SqlDbType.Int).Value = currentBatchSize;
+            cmd.Parameters.Add("@CandidateRows", SqlDbType.Int).Direction = ParameterDirection.Output;
+            cmd.Parameters.Add("@InsertedRows", SqlDbType.Int).Direction = ParameterDirection.Output;
+            cmd.Parameters.Add("@DeletedRows", SqlDbType.Int).Direction = ParameterDirection.Output;
+            using var cancelRegistration = cancellationToken.Register(() =>
+            {
+                try { cmd.Cancel(); }
+                catch { /* 取消时连接可能已释放 */ }
+            });
+
+            await cmd.ExecuteNonQueryAsync(cancellationToken);
+            var candidateRows = Convert.ToInt32(cmd.Parameters["@CandidateRows"].Value);
+            var insertedRows = Convert.ToInt32(cmd.Parameters["@InsertedRows"].Value);
+            var deletedRows = Convert.ToInt32(cmd.Parameters["@DeletedRows"].Value);
+
+            if (candidateRows == 0)
+                break;
+
+            result.BatchCount++;
+            result.CandidateRows += candidateRows;
+            result.InsertedRows += insertedRows;
+            result.SkippedRows += Math.Max(0, candidateRows - insertedRows);
+            result.DeletedRows += deletedRows;
+
+            if (candidateRows < currentBatchSize)
+                break;
+        }
+
+        return result;
+    }
+
     /// <summary>获取数据库大小（MB），用于备份前空间预检</summary>
     public static async Task<long> GetDatabaseSizeMbAsync(Connection conn, string database, CancellationToken cancellationToken = default)
     {
@@ -189,6 +258,195 @@ public class SqlServerClient
         });
         var result = await cmd.ExecuteScalarAsync(cancellationToken);
         return result is DBNull ? 0 : Convert.ToInt64(result);
+    }
+
+    private static void ValidateDataArchiveConfig(DataArchiveConfig config)
+    {
+        SqlIdentifierGuard.EnsureSimpleIdentifier(config.SourceDatabase, "源数据库");
+        SqlIdentifierGuard.EnsureSimpleIdentifier(config.SourceSchema, "源架构");
+        SqlIdentifierGuard.EnsureSimpleIdentifier(config.SourceTable, "源表");
+        SqlIdentifierGuard.EnsureSimpleIdentifier(config.TargetDatabase, "历史数据库");
+        SqlIdentifierGuard.EnsureSimpleIdentifier(config.TargetSchema, "历史架构");
+        SqlIdentifierGuard.EnsureSimpleIdentifier(config.TargetTable, "历史表");
+        SqlIdentifierGuard.EnsureSimpleIdentifier(config.DateColumn, "时间字段");
+        SqlIdentifierGuard.EnsureSimpleIdentifier(config.PrimaryKeyColumn, "主键字段");
+
+        if (!string.Equals(config.RetentionType, "DAY", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(config.RetentionType, "MONTH", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("保留类型必须是 DAY 或 MONTH。");
+
+        if (config.RetentionValue <= 0)
+            throw new InvalidOperationException("保留值必须为正整数。");
+
+        if (config.BatchSize <= 0)
+            throw new InvalidOperationException("每批行数必须为正整数。");
+
+        if (config.MaxRowsPerRun <= 0)
+            throw new InvalidOperationException("单次最大行数必须为正整数。");
+    }
+
+    private static DateTime CalculateArchiveCutoff(DataArchiveConfig config)
+    {
+        return string.Equals(config.RetentionType, "DAY", StringComparison.OrdinalIgnoreCase)
+            ? DateTime.Now.AddDays(-config.RetentionValue)
+            : DateTime.Now.AddMonths(-config.RetentionValue);
+    }
+
+    private static async Task<List<ArchiveColumn>> QueryArchiveColumnsAsync(
+        SqlConnection sqlConn,
+        string database,
+        string schema,
+        string table,
+        int timeoutSec,
+        CancellationToken cancellationToken)
+    {
+        var sql = $"""
+            SELECT
+                c.name,
+                t.name AS type_name,
+                c.is_identity,
+                c.is_computed
+            FROM {QuoteThreePart(database, "sys", "columns")} c
+            INNER JOIN {QuoteThreePart(database, "sys", "tables")} tb ON c.object_id = tb.object_id
+            INNER JOIN {QuoteThreePart(database, "sys", "schemas")} s ON tb.schema_id = s.schema_id
+            INNER JOIN {QuoteThreePart(database, "sys", "types")} t ON c.user_type_id = t.user_type_id
+            WHERE s.name = @schema AND tb.name = @table
+            ORDER BY c.column_id;
+            """;
+
+        await using var cmd = new SqlCommand(sql, sqlConn) { CommandTimeout = timeoutSec };
+        cmd.Parameters.AddWithValue("@schema", schema);
+        cmd.Parameters.AddWithValue("@table", table);
+        using var cancelRegistration = cancellationToken.Register(() =>
+        {
+            try { cmd.Cancel(); }
+            catch { /* 取消时连接可能已释放 */ }
+        });
+
+        var columns = new List<ArchiveColumn>();
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var typeName = reader.GetString("type_name");
+            columns.Add(new ArchiveColumn(
+                reader.GetString("name"),
+                typeName,
+                reader.GetBoolean(reader.GetOrdinal("is_identity")),
+                reader.GetBoolean(reader.GetOrdinal("is_computed")),
+                string.Equals(typeName, "timestamp", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(typeName, "rowversion", StringComparison.OrdinalIgnoreCase)));
+        }
+
+        return columns;
+    }
+
+    private static void ValidateArchiveColumns(
+        DataArchiveConfig config,
+        List<ArchiveColumn> sourceColumns,
+        List<ArchiveColumn> targetColumns)
+    {
+        if (sourceColumns.Count == 0)
+            throw new InvalidOperationException($"源表不存在或没有可读取字段：{config.SourceDatabase}.{config.SourceSchema}.{config.SourceTable}");
+        if (targetColumns.Count == 0)
+            throw new InvalidOperationException($"历史表不存在或没有可写入字段：{config.TargetDatabase}.{config.TargetSchema}.{config.TargetTable}");
+
+        var sourceMap = sourceColumns.ToDictionary(c => c.Name, StringComparer.OrdinalIgnoreCase);
+        var targetMap = targetColumns.ToDictionary(c => c.Name, StringComparer.OrdinalIgnoreCase);
+        if (!sourceMap.ContainsKey(config.DateColumn))
+            throw new InvalidOperationException($"源表不存在时间字段：{config.DateColumn}");
+        if (!sourceMap.ContainsKey(config.PrimaryKeyColumn))
+            throw new InvalidOperationException($"源表不存在主键字段：{config.PrimaryKeyColumn}");
+        if (!targetMap.ContainsKey(config.PrimaryKeyColumn))
+            throw new InvalidOperationException($"历史表不存在主键字段：{config.PrimaryKeyColumn}");
+
+        var missing = sourceColumns
+            .Where(c => !c.IsComputed && !c.IsRowVersion && !targetMap.ContainsKey(c.Name))
+            .Select(c => c.Name)
+            .ToList();
+        if (missing.Count > 0)
+            throw new InvalidOperationException($"历史表缺少字段：{string.Join("、", missing)}");
+    }
+
+    private static string BuildArchiveBatchSql(
+        DataArchiveConfig config,
+        List<string> insertColumns,
+        bool needsIdentityInsert)
+    {
+        var source = QuoteThreePart(config.SourceDatabase, config.SourceSchema, config.SourceTable);
+        var target = QuoteThreePart(config.TargetDatabase, config.TargetSchema, config.TargetTable);
+        var pk = SqlIdentifierGuard.Quote(config.PrimaryKeyColumn);
+        var dateColumn = SqlIdentifierGuard.Quote(config.DateColumn);
+        var columns = string.Join(", ", insertColumns.Select(SqlIdentifierGuard.Quote));
+        var sourceColumns = string.Join(", ", insertColumns.Select(c => $"src.{SqlIdentifierGuard.Quote(c)}"));
+        var identityOn = needsIdentityInsert ? $"SET IDENTITY_INSERT {target} ON;" : string.Empty;
+        var identityOff = needsIdentityInsert ? $"SET IDENTITY_INSERT {target} OFF;" : string.Empty;
+        var existingFilter = config.SkipExistingRows
+            ? $"AND NOT EXISTS (SELECT 1 FROM {target} tgt WITH (READPAST) WHERE tgt.{pk} = src.{pk})"
+            : string.Empty;
+        var deleteStatement = config.DeleteAfterCopy
+            ? $"""
+                DELETE src
+                FROM {source} src
+                INNER JOIN #ArchiveKeys k ON k.{pk} = src.{pk};
+                SET @DeletedRows = @@ROWCOUNT;
+                """
+            : "SET @DeletedRows = 0;";
+
+        return $"""
+            SET XACT_ABORT ON;
+            SET NOCOUNT ON;
+            DROP TABLE IF EXISTS #ArchiveKeys;
+
+            SELECT TOP (0) {pk}
+            INTO #ArchiveKeys
+            FROM {source};
+
+            BEGIN TRY
+                BEGIN TRAN;
+
+                INSERT INTO #ArchiveKeys ({pk})
+                SELECT TOP (@BatchSize) src.{pk}
+                FROM {source} src WITH (READPAST)
+                WHERE src.{dateColumn} < @Cutoff
+                ORDER BY src.{dateColumn}, src.{pk};
+                SET @CandidateRows = @@ROWCOUNT;
+
+                IF @CandidateRows > 0
+                BEGIN
+                    {identityOn}
+                    INSERT INTO {target} ({columns})
+                    SELECT {sourceColumns}
+                    FROM {source} src WITH (READPAST)
+                    INNER JOIN #ArchiveKeys k ON k.{pk} = src.{pk}
+                    WHERE 1 = 1
+                    {existingFilter};
+                    SET @InsertedRows = @@ROWCOUNT;
+                    {identityOff}
+
+                    {deleteStatement}
+                END
+                ELSE
+                BEGIN
+                    SET @InsertedRows = 0;
+                    SET @DeletedRows = 0;
+                END
+
+                COMMIT TRAN;
+            END TRY
+            BEGIN CATCH
+                IF @@TRANCOUNT > 0 ROLLBACK TRAN;
+                {identityOff}
+                DROP TABLE IF EXISTS #ArchiveKeys;
+                THROW;
+            END CATCH;
+
+            DROP TABLE IF EXISTS #ArchiveKeys;
+            """;
+    }
+
+    private static string QuoteThreePart(string database, string schema, string name)
+    {
+        return $"{SqlIdentifierGuard.Quote(database)}.{SqlIdentifierGuard.Quote(schema)}.{SqlIdentifierGuard.Quote(name)}";
     }
 
     /// <summary>分析指定数据库的文件、表、索引空间占用</summary>
@@ -424,6 +682,8 @@ public class SqlServerClient
     {
         return identifier.Replace("]", "]]", StringComparison.Ordinal);
     }
+
+    private sealed record ArchiveColumn(string Name, string TypeName, bool IsIdentity, bool IsComputed, bool IsRowVersion);
 }
 
 internal static class SqlDataReaderExtensions

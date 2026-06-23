@@ -93,6 +93,13 @@ public partial class TaskListPage : Page
         await _vm.CancelTaskCommand.ExecuteAsync(item);
     }
 
+    private void ViewHistory_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: TaskListItem item }) return;
+        var dialog = new TaskExecutionHistoryDialog(item.Model);
+        dialog.ShowDialog();
+    }
+
     private async void ToggleEnabled_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not FrameworkElement { Tag: TaskListItem item }) return;

@@ -205,6 +205,7 @@ public partial class TaskListItem : ObservableObject
         "PROCEDURE" => "存储过程",
         "CUSTOM_SQL" => "自定义SQL",
         "BACKUP_CLEANUP" => "备份清理",
+        "DATA_ARCHIVE" => "数据归档",
         _ => Model.TaskType
     };
 
