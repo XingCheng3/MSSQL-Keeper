@@ -43,6 +43,21 @@ public class ExecutionLogRepository : IExecutionLogRepository
         return result.ToList();
     }
 
+    public async Task<List<ExecutionLog>> GetByTaskAsync(int taskId, string taskName, string taskType, int count = 50)
+    {
+        using var db = new SqliteConnection(_connStr);
+        var limit = Math.Clamp(count, 1, 500);
+        var result = await db.QueryAsync<ExecutionLog>("""
+            SELECT *
+            FROM execution_logs
+            WHERE task_id = @taskId
+               OR (task_name = @taskName AND task_type = @taskType)
+            ORDER BY started_at DESC
+            LIMIT @limit
+            """, new { taskId, taskName, taskType, limit });
+        return result.ToList();
+    }
+
     /// <summary>
     /// 分页查询，支持按任务名、状态、时间范围过滤
     /// </summary>
