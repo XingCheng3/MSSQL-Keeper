@@ -497,6 +497,8 @@ public class SchedulerService
                 "ARCHIVE" => $"DIR_{(string.IsNullOrWhiteSpace(config.ArchiveFormat) ? "ZIP" : config.ArchiveFormat.ToUpperInvariant())}",
                 _ => "DIR_DIFF"
             };
+        if (!IsDirectoryArchiveBackup(backupType))
+            return;
 
         var sizeBytes = GetMetadataLong(metadata, "FileSizeBytes");
         sizeBytes ??= File.Exists(filePath) ? new FileInfo(filePath).Length : GetDirectorySize(filePath);
@@ -513,11 +515,19 @@ public class SchedulerService
             FileSizeBytes = sizeBytes,
             BackupType = backupType,
             CreatedAt = DateTime.Now.ToString("O"),
-            ExpiresAt = config.RetentionDays > 0 ? DateTime.Now.AddDays(config.RetentionDays).ToString("O") : null,
+            ExpiresAt = IsDirectoryArchiveBackup(backupType) && config.RetentionDays > 0
+                ? DateTime.Now.AddDays(config.RetentionDays).ToString("O")
+                : null,
             IsVerified = isVerified,
             Status = isVerified ? "NORMAL" : "WARNING"
         };
         await _backupRepo.InsertAsync(bf);
+    }
+
+    private static bool IsDirectoryArchiveBackup(string? backupType)
+    {
+        return string.Equals(backupType, "DIR_ZIP", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(backupType, "DIR_7Z", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string? GetMetadataString(IReadOnlyDictionary<string, object> metadata, string key)

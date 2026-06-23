@@ -54,6 +54,7 @@ public class CleanupExecutor : ITaskExecutor
         var activeFiles = await _backupRepo!.GetAllActiveAsync();
         var recordsByPath = activeFiles
             .Where(file => IsSameOrUnderDirectory(file.FilePath, dir))
+            .Where(file => !IsDirectorySyncTargetRecord(file))
             .Where(file => BackupPathGuard.IsAllowedBackupPath(file.FilePath, [dir]))
             .GroupBy(file => GetFullPathOrOriginal(file.FilePath), StringComparer.OrdinalIgnoreCase)
             .Select(group =>
@@ -100,6 +101,15 @@ public class CleanupExecutor : ITaskExecutor
         }
 
         return BuildCleanupResult(deletedPaths.Count, failedDeletes, skippedPinned);
+    }
+
+    private static bool IsDirectorySyncTargetRecord(BackupFile file)
+    {
+        if (!string.Equals(file.SourceType, "DIRECTORY", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        return string.Equals(file.BackupType, "DIR_DIFF", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(file.BackupType, "DIR_FULL", StringComparison.OrdinalIgnoreCase);
     }
 
     private static Task<ExecutionResult> ExecuteFileSystemCleanupAsync(

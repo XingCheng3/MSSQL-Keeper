@@ -122,6 +122,13 @@ public partial class BackupFilesViewModel : ObservableObject
     [RelayCommand]
     private async Task DeleteFileAsync(BackupFile file)
     {
+        if (ShouldDeleteRecordOnly(file))
+        {
+            await DeleteRecordOnlyAsync(file);
+            Log.Information("仅删除备份管理记录，不删除磁盘路径: {FileName}", file.FileName);
+            return;
+        }
+
         var allowedDirectories = await GetAllowedBackupDirectoriesAsync();
         if (!BackupPathGuard.IsAllowedBackupPath(file.FilePath, allowedDirectories))
             throw new InvalidOperationException($"不允许删除非备份目录路径：{file.FilePath}");
@@ -136,13 +143,7 @@ public partial class BackupFilesViewModel : ObservableObject
             throw new InvalidOperationException($"删除磁盘备份失败：{ex.Message}", ex);
         }
 
-        var deletedAt = DateTime.Now.ToString("O");
-        await _repo.UpdateStatusAsync(file.Id, "DELETED", deletedAt);
-        file.Status = "DELETED";
-        file.DeletedAt = deletedAt;
-        SelectedFiles.Remove(file);
-        SelectedCount = SelectedFiles.Count;
-        await LoadAsync();
+        await MarkDeletedAsync(file);
         Log.Information("删除备份记录并标记为 DELETED: {FileName}", file.FileName);
     }
 
@@ -157,6 +158,13 @@ public partial class BackupFilesViewModel : ObservableObject
         var deletedAt = DateTime.Now.ToString("O");
         foreach (var file in toDelete)
         {
+            if (ShouldDeleteRecordOnly(file))
+            {
+                await _repo.DeleteAsync(file.Id);
+                Log.Information("批量仅删除备份管理记录，不删除磁盘路径: {FileName}", file.FileName);
+                continue;
+            }
+
             if (!BackupPathGuard.IsAllowedBackupPath(file.FilePath, allowedDirectories))
             {
                 failedDeletes.Add($"{file.FileName}: 路径不在允许的备份目录内");
@@ -182,6 +190,41 @@ public partial class BackupFilesViewModel : ObservableObject
 
         if (failedDeletes.Count > 0)
             throw new InvalidOperationException("以下文件删除失败：" + Environment.NewLine + string.Join(Environment.NewLine, failedDeletes));
+    }
+
+    private async Task DeleteRecordOnlyAsync(BackupFile file)
+    {
+        await _repo.DeleteAsync(file.Id);
+        Files.Remove(file);
+        SelectedFiles.Remove(file);
+        SelectedCount = SelectedFiles.Count;
+        await LoadAsync();
+    }
+
+    private async Task MarkDeletedAsync(BackupFile file)
+    {
+        var deletedAt = DateTime.Now.ToString("O");
+        await _repo.UpdateStatusAsync(file.Id, "DELETED", deletedAt);
+        file.Status = "DELETED";
+        file.DeletedAt = deletedAt;
+        SelectedFiles.Remove(file);
+        SelectedCount = SelectedFiles.Count;
+        await LoadAsync();
+    }
+
+    private static bool ShouldDeleteRecordOnly(BackupFile file)
+    {
+        return string.Equals(file.Status, "DELETED", StringComparison.OrdinalIgnoreCase)
+            || IsDirectorySyncTargetRecord(file);
+    }
+
+    private static bool IsDirectorySyncTargetRecord(BackupFile file)
+    {
+        if (!string.Equals(file.SourceType, "DIRECTORY", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        return string.Equals(file.BackupType, "DIR_DIFF", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(file.BackupType, "DIR_FULL", StringComparison.OrdinalIgnoreCase);
     }
 
     public void ToggleSelection(BackupFile file, bool isSelected)
