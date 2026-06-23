@@ -65,15 +65,29 @@
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
-                <DataGridTextColumn Header="文件名" Binding="{Binding FileName}" Width="*" />
-                <DataGridTextColumn Header="来源" Binding="{Binding SourceDisplay}" Width="130" />
-                <DataGridTextColumn Header="来源类型" Binding="{Binding SourceTypeDisplay}" Width="75" />
-                <DataGridTextColumn Header="大小" Binding="{Binding FileSizeBytes, Converter={StaticResource FileSize}}" Width="80" />
-                <DataGridTextColumn Header="类型" Binding="{Binding BackupType}" Width="55" />
+                <DataGridTextColumn Header="文件名" Binding="{Binding FileName}" Width="*" MinWidth="220" MaxWidth="420">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                            <Setter Property="ToolTip" Value="{Binding FileName}" />
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+                <DataGridTextColumn Header="来源" Binding="{Binding SourceDisplay}" Width="230">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                            <Setter Property="ToolTip" Value="{Binding SourceDisplay}" />
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+                <DataGridTextColumn Header="来源类型" Binding="{Binding SourceTypeDisplay}" Width="110" />
+                <DataGridTextColumn Header="大小" Binding="{Binding FileSizeBytes, Converter={StaticResource FileSize}}" Width="90" />
+                <DataGridTextColumn Header="类型" Binding="{Binding BackupTypeDisplay}" Width="115" />
                 <DataGridTextColumn Header="备份时间" Binding="{Binding CreatedAt, Converter={StaticResource IsoDateTime}}" Width="155" />
-                <DataGridTextColumn Header="过期" Binding="{Binding ExpiresAt, Converter={StaticResource IsoDateTime}, ConverterParameter=yyyy-MM-dd}" Width="85" />
-                <DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="70" />
-                <DataGridTemplateColumn Header="操作" Width="120">
+                <DataGridTextColumn Header="过期" Binding="{Binding ExpiresAt, Converter={StaticResource IsoDateTime}, ConverterParameter=yyyy-MM-dd}" Width="95" />
+                <DataGridTextColumn Header="状态" Binding="{Binding StatusDisplay}" Width="105" />
+                <DataGridTemplateColumn Header="操作" Width="130">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <StackPanel Orientation="Horizontal">

@@ -64,10 +64,13 @@ public partial class BackupFilesPage : Page
     private async void Delete_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not FrameworkElement { Tag: BackupFile file }) return;
+        var recordOnly = ShouldDeleteRecordOnly(file);
         var result = await new Wpf.Ui.Controls.MessageBox
         {
             Title = "确认删除",
-            Content = $"确定删除备份文件「{file.FileName}」吗？\n磁盘文件将被永久删除。",
+            Content = recordOnly
+                ? $"确定删除备份管理记录「{file.FileName}」吗？\n不会删除磁盘上的实际目录或文件。"
+                : $"确定删除备份文件「{file.FileName}」吗？\n磁盘文件将被永久删除。",
             PrimaryButtonText = "删除",
             CloseButtonText = "取消"
         }.ShowDialogAsync();
@@ -92,10 +95,14 @@ public partial class BackupFilesPage : Page
     private async void BatchDelete_Click(object sender, RoutedEventArgs e)
     {
         if (_vm.SelectedFiles.Count == 0) return;
+        var recordOnlyCount = _vm.SelectedFiles.Count(ShouldDeleteRecordOnly);
+        var physicalDeleteCount = _vm.SelectedFiles.Count - recordOnlyCount;
         var result = await new Wpf.Ui.Controls.MessageBox
         {
             Title = "确认批量删除",
-            Content = $"确定删除选中的 {_vm.SelectedFiles.Count} 个备份文件吗？\n磁盘文件将被永久删除，此操作不可撤销。",
+            Content = recordOnlyCount > 0
+                ? $"确定删除选中的 {_vm.SelectedFiles.Count} 条记录吗？\n其中 {recordOnlyCount} 条只删除管理记录，{physicalDeleteCount} 条会删除磁盘文件。"
+                : $"确定删除选中的 {_vm.SelectedFiles.Count} 个备份文件吗？\n磁盘文件将被永久删除，此操作不可撤销。",
             PrimaryButtonText = "删除",
             CloseButtonText = "取消"
         }.ShowDialogAsync();
@@ -143,5 +150,20 @@ public partial class BackupFilesPage : Page
         _vm.FilterDateFrom = dpDateFrom.SelectedDate;
         _vm.FilterDateTo = dpDateTo.SelectedDate;
         await _vm.LoadAsync();
+    }
+
+    private static bool ShouldDeleteRecordOnly(BackupFile file)
+    {
+        return string.Equals(file.Status, "DELETED", StringComparison.OrdinalIgnoreCase)
+            || IsDirectorySyncTargetRecord(file);
+    }
+
+    private static bool IsDirectorySyncTargetRecord(BackupFile file)
+    {
+        if (!string.Equals(file.SourceType, "DIRECTORY", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        return string.Equals(file.BackupType, "DIR_DIFF", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(file.BackupType, "DIR_FULL", StringComparison.OrdinalIgnoreCase);
     }
 }
