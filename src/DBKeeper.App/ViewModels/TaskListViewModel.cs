@@ -140,6 +140,22 @@ public partial class TaskListViewModel : ObservableObject
         await LoadAsync();
         Log.Information("{Action}任务: {Name}", isNew ? "新建" : "更新", task.Name);
     }
+
+    public async Task SaveTasksAsync(IEnumerable<TaskItem> tasks)
+    {
+        var savedTasks = new List<TaskItem>();
+        foreach (var task in tasks)
+        {
+            task.Id = await _taskRepo.InsertAsync(task);
+            savedTasks.Add(task);
+
+            if (task.IsEnabled)
+                await _scheduler.ScheduleTaskAsync(task);
+        }
+
+        await LoadAsync();
+        Log.Information("批量新建任务: {Count} 个", savedTasks.Count);
+    }
 }
 
 public partial class TaskListItem : ObservableObject

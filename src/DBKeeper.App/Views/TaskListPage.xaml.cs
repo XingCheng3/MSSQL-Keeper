@@ -43,6 +43,17 @@ public partial class TaskListPage : Page
         }
     }
 
+
+    private async void NewBackupPlan_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new BackupPlanDialog();
+        if (dialog.ShowDialog() == true && dialog.Result.Count > 0)
+        {
+            await _vm.SaveTasksAsync(dialog.Result);
+            Log.Information("新建组合备份任务: {Count} 个", dialog.Result.Count);
+        }
+    }
+
     private async void EditTask_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not FrameworkElement { Tag: TaskListItem item }) return;

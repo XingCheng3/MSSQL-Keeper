@@ -14,8 +14,10 @@
         <!-- 标题 -->
         <DockPanel Grid.Row="0" Style="{StaticResource DbkPageTitleBarStyle}">
             <TextBlock Text="定时任务" Style="{StaticResource DbkPageTitleTextStyle}" />
-            <ui:Button Content="+ 新建任务" Appearance="Primary" DockPanel.Dock="Right"
-                       HorizontalAlignment="Right" Click="NewTask_Click" />
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
+                <ui:Button Content="组合备份" Margin="0,0,8,0" Click="NewBackupPlan_Click" />
+                <ui:Button Content="+ 新建任务" Appearance="Primary" Click="NewTask_Click" />
+            </StackPanel>
         </DockPanel>
 
         <!-- 过滤 -->
@@ -50,8 +52,10 @@
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
             <TextBlock Text="创建第一个任务，开始自动化管理数据库维护" FontSize="13" HorizontalAlignment="Center"
                        Foreground="{DynamicResource TextFillColorTertiaryBrush}" Margin="0,0,0,16" />
-            <ui:Button Content="+ 新建任务" Appearance="Primary" HorizontalAlignment="Center"
-                       Click="NewTask_Click" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                <ui:Button Content="组合备份" Margin="0,0,8,0" Click="NewBackupPlan_Click" />
+                <ui:Button Content="+ 新建任务" Appearance="Primary" Click="NewTask_Click" />
+            </StackPanel>
         </StackPanel>
 
         <!-- 任务列表 -->
