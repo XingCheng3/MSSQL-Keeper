@@ -60,11 +60,12 @@ public class SqlServerClient
     public static async Task ExecuteBackupAsync(Connection conn, string database, string backupPath,
         bool useCompression, int timeoutSec = 600, string backupType = "FULL", CancellationToken cancellationToken = default)
     {
+        var escapedDatabase = EscapeSqlIdentifier(database);
         var sql = backupType.ToUpper() switch
         {
-            "DIFF" => $"BACKUP DATABASE [{database}] TO DISK = @path WITH DIFFERENTIAL, INIT",
-            "LOG"  => $"BACKUP LOG [{database}] TO DISK = @path WITH INIT",
-            _      => $"BACKUP DATABASE [{database}] TO DISK = @path WITH INIT"
+            "DIFF" => $"BACKUP DATABASE [{escapedDatabase}] TO DISK = @path WITH DIFFERENTIAL, INIT",
+            "LOG"  => $"BACKUP LOG [{escapedDatabase}] TO DISK = @path WITH INIT",
+            _      => $"BACKUP DATABASE [{escapedDatabase}] TO DISK = @path WITH INIT"
         };
         if (useCompression && backupType.ToUpper() != "LOG") sql += ", COMPRESSION";
 
@@ -138,6 +139,40 @@ public class SqlServerClient
         });
         var rowsAffected = await cmd.ExecuteNonQueryAsync(cancellationToken);
         return $"SQL 执行完成，影响 {rowsAffected} 行";
+    }
+
+    /// <summary>按 GO 分段执行自定义 SQL</summary>
+    public static async Task<string?> ExecuteSqlBatchesAsync(Connection conn, string database,
+        string sql, int timeoutSec = 600, CancellationToken cancellationToken = default)
+    {
+        var batches = SqlBatchSplitter.SplitBatches(sql);
+        if (batches.Count == 0)
+            return "没有可执行的 SQL 批次";
+
+        await using var sqlConn = new SqlConnection(BuildConnectionString(conn, database));
+        await sqlConn.OpenAsync(cancellationToken);
+
+        var totalRowsAffected = 0;
+        for (int i = 0; i < batches.Count; i++)
+        {
+            await using var cmd = new SqlCommand(batches[i], sqlConn) { CommandTimeout = timeoutSec };
+            using var cancelRegistration = cancellationToken.Register(() =>
+            {
+                try { cmd.Cancel(); }
+                catch { /* 取消时连接可能已释放 */ }
+            });
+
+            try
+            {
+                totalRowsAffected += await cmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                throw new InvalidOperationException($"第 {i + 1} 个 SQL 批次执行失败：{ex.Message}", ex);
+            }
+        }
+
+        return $"SQL 批次执行完成，共 {batches.Count} 段，累计影响 {totalRowsAffected} 行";
     }
 
     /// <summary>获取数据库大小（MB），用于备份前空间预检</summary>
@@ -383,6 +418,11 @@ public class SqlServerClient
             catch { /* 取消时连接可能已释放 */ }
         });
         return cmd;
+    }
+
+    private static string EscapeSqlIdentifier(string identifier)
+    {
+        return identifier.Replace("]", "]]", StringComparison.Ordinal);
     }
 }
 

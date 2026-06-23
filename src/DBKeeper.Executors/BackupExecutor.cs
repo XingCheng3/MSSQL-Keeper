@@ -62,8 +62,32 @@ public class BackupExecutor : ITaskExecutor
         }
 
         // 校验
+        var isVerified = false;
         if (config.VerifyAfterBackup)
-            await SqlServerClient.ExecuteVerifyAsync(connection, filePath, cancellationToken: cancellationToken);
+        {
+            try
+            {
+                await SqlServerClient.ExecuteVerifyAsync(connection, filePath, cancellationToken: cancellationToken);
+                isVerified = true;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                Log.Warning(ex, "备份已生成但校验失败: {Db} -> {FilePath}", dbName, filePath);
+                return new ExecutionResult
+                {
+                    Success = false,
+                    Summary = $"{dbName} 备份完成，但校验失败",
+                    ErrorDetail = ex.ToString(),
+                    Metadata = new Dictionary<string, object>
+                    {
+                        ["FilePath"] = filePath,
+                        ["FileName"] = fileName,
+                        ["BackupCreated"] = true,
+                        ["IsVerified"] = false
+                    }
+                };
+            }
+        }
 
         // 获取文件大小
         var fileInfo = new FileInfo(filePath);
@@ -78,7 +102,9 @@ public class BackupExecutor : ITaskExecutor
             {
                 ["FilePath"] = filePath,
                 ["FileName"] = fileName,
-                ["FileSizeBytes"] = fileInfo.Length
+                ["FileSizeBytes"] = fileInfo.Length,
+                ["BackupCreated"] = true,
+                ["IsVerified"] = isVerified
             }
         };
     }

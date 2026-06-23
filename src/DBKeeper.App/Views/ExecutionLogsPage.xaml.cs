@@ -54,5 +54,14 @@ public partial class ExecutionLogsPage : Page
     {
         if (_vm == null) return;
         await _vm.ExportCsvCommand.ExecuteAsync(null);
+        if (!string.IsNullOrWhiteSpace(_vm.LastExportMessage))
+        {
+            await new Wpf.Ui.Controls.MessageBox
+            {
+                Title = _vm.LastExportSucceeded ? "导出成功" : "导出失败",
+                Content = _vm.LastExportMessage,
+                CloseButtonText = "确定"
+            }.ShowDialogAsync();
+        }
     }
 }

@@ -113,7 +113,11 @@
                     <TextBlock Text="文件名规则" FontSize="13" Margin="0,0,0,4" />
                     <ui:TextBox x:Name="txtFilePattern" Text="{}{DB}_{DATE}_{TIME}.bak" Margin="0,0,0,10" />
                     <TextBlock Text="保留天数" FontSize="13" Margin="0,0,0,4" />
-                    <ui:TextBox x:Name="txtRetention" Text="30" Margin="0,0,0,10" />
+                    <ui:TextBox x:Name="txtRetention" Text="30" Margin="0,0,0,4" />
+                    <TextBlock Text="仅记录该备份的保留策略；如需自动删文件，请额外配置“备份清理”任务。"
+                               FontSize="11" Margin="0,0,0,10"
+                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                               TextWrapping="Wrap" />
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                         <CheckBox x:Name="chkCompress" Content="压缩备份" IsChecked="True" Margin="0,0,16,0" />
                         <CheckBox x:Name="chkVerify" Content="完成后校验" />

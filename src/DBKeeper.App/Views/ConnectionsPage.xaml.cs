@@ -9,6 +9,7 @@ namespace DBKeeper.App.Views;
 public partial class ConnectionsPage : Page
 {
     private ConnectionsViewModel _vm = null!;
+    private bool _isCollectionChangedBound;
 
     public ConnectionsPage()
     {
@@ -24,11 +25,11 @@ public partial class ConnectionsPage : Page
         await _vm.LoadAsync();
         UpdateEmptyState();
 
-        _vm.Connections.CollectionChanged += (_, _) => UpdateEmptyState();
-
-        // 加载后自动测试所有连接状态
-        foreach (var item in _vm.Connections.ToList())
-            _ = _vm.TestConnectionCommand.ExecuteAsync(item);
+        if (!_isCollectionChangedBound)
+        {
+            _vm.Connections.CollectionChanged += (_, _) => UpdateEmptyState();
+            _isCollectionChangedBound = true;
+        }
     }
 
     private void UpdateEmptyState()
@@ -61,14 +62,23 @@ public partial class ConnectionsPage : Page
         await _vm.TestConnectionCommand.ExecuteAsync(item);
     }
 
+    private async void TestAllConnections_Click(object sender, RoutedEventArgs e)
+    {
+        await _vm.TestAllConnectionsAsync();
+    }
+
     private async void DeleteConnection_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not FrameworkElement { Tag: ConnectionCardItem item }) return;
 
+        var impact = await _vm.GetDeleteImpactAsync(item);
         var msg = $"确定要删除连接「{item.Model.Name}」吗？此操作不可撤销。";
-        var taskCount = item.PendingDeleteTaskCount;
-        if (taskCount > 0)
-            msg = $"连接「{item.Model.Name}」关联了 {taskCount} 个任务，删除后任务将无法执行。\n\n确定删除吗？";
+        if (impact.TaskCount > 0)
+        {
+            var preview = string.Join("、", impact.TaskNames.Take(5));
+            var suffix = impact.TaskNames.Count > 5 ? " 等" : string.Empty;
+            msg = $"连接「{item.Model.Name}」关联了 {impact.TaskCount} 个任务，删除后这些任务将变为未绑定连接。\n\n受影响任务：{preview}{suffix}\n\n确定删除吗？";
+        }
 
         var result = await new Wpf.Ui.Controls.MessageBox
         {

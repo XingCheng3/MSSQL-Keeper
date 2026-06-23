@@ -66,6 +66,15 @@ public class TaskRepository : ITaskRepository
         await tx.CommitAsync();
     }
 
+    public async Task UpdateNextRunAsync(int id, string? nextRunAt)
+    {
+        using var db = new SqliteConnection(_connStr);
+        await db.ExecuteAsync("""
+            UPDATE tasks SET next_run_at = @nextRunAt, updated_at = @now
+            WHERE id = @id
+            """, new { id, nextRunAt, now = DateTime.Now.ToString("O") });
+    }
+
     public async Task UpdateLastRunAsync(int id, string status, string? nextRunAt)
     {
         using var db = new SqliteConnection(_connStr);

@@ -108,7 +108,7 @@ public class SchedulerService
         };
 
         task.NextRunAt = nextRun.Value.ToLocalTime().ToString("O");
-        await _taskRepo.UpdateLastRunAsync(task.Id, task.LastRunStatus ?? "", task.NextRunAt);
+        await _taskRepo.UpdateNextRunAsync(task.Id, task.NextRunAt);
     }
 
     /// <summary>移除任务调度</summary>
@@ -172,7 +172,7 @@ public class SchedulerService
                 {
                     _entries[task.Id] = new ScheduledEntry { TaskId = task.Id, NextRunUtc = next.Value };
                     task.NextRunAt = next.Value.ToLocalTime().ToString("O");
-                    await _taskRepo.UpdateLastRunAsync(task.Id, task.LastRunStatus ?? "", task.NextRunAt);
+                    await _taskRepo.UpdateNextRunAsync(task.Id, task.NextRunAt);
                 }
                 else
                 {
@@ -228,6 +228,11 @@ public class SchedulerService
                 case "INTERVAL":
                 {
                     var minutes = config.GetProperty("interval_minutes").GetInt32();
+                    if (minutes <= 0)
+                    {
+                        Log.Warning("任务 {TaskName} 的间隔分钟数无效: {Minutes}", task.Name, minutes);
+                        return null;
+                    }
                     return now.AddMinutes(minutes);
                 }
                 case "CRON":
@@ -316,10 +321,20 @@ public class SchedulerService
             await _logRepo.UpdateFinishAsync(log.Id, status, (int)sw.ElapsedMilliseconds, result.Summary, result.ErrorDetail);
             await _taskRepo.UpdateLastRunAsync(task.Id, status, task.NextRunAt);
 
-            if (task.TaskType == "BACKUP" && result.Success)
+            if (task.TaskType == "BACKUP" && result.Metadata != null)
             {
-                var actualFilePath = result.Metadata?.GetValueOrDefault("FilePath") as string;
-                await RecordBackupFileAsync(task, actualFilePath);
+                var metadata = result.Metadata;
+                var actualFilePath = metadata.GetValueOrDefault("FilePath") as string;
+                var backupCreated = metadata.TryGetValue("BackupCreated", out var backupCreatedValue)
+                    && backupCreatedValue is bool backupCreatedFlag
+                    && backupCreatedFlag;
+                if (backupCreated)
+                {
+                    var isVerified = metadata.TryGetValue("IsVerified", out var isVerifiedValue)
+                        && isVerifiedValue is bool verified
+                        && verified;
+                    await RecordBackupFileAsync(task, actualFilePath, isVerified);
+                }
             }
         }
         catch (OperationCanceledException ex)
@@ -396,7 +411,7 @@ public class SchedulerService
         await _taskRepo.UpdateLastRunAsync(task.Id, "CANCELLED", task.NextRunAt);
     }
 
-    private async Task RecordBackupFileAsync(TaskItem task, string? actualFilePath)
+    private async Task RecordBackupFileAsync(TaskItem task, string? actualFilePath, bool isVerified)
     {
         var config = JsonSerializer.Deserialize<BackupConfig>(task.TaskConfig);
         if (config == null) return;
@@ -430,6 +445,7 @@ public class SchedulerService
             BackupType = config.BackupType,
             CreatedAt = DateTime.Now.ToString("O"),
             ExpiresAt = config.RetentionDays > 0 ? DateTime.Now.AddDays(config.RetentionDays).ToString("O") : null,
+            IsVerified = isVerified,
             Status = "NORMAL"
         };
         await _backupRepo.InsertAsync(bf);

@@ -62,11 +62,14 @@ public partial class EditTaskDialog : Wpf.Ui.Controls.FluentWindow
         try
         {
             var sc = JsonSerializer.Deserialize<JsonElement>(task.ScheduleConfig);
-            if (sc.TryGetProperty("time", out var time)) txtTime.Text = time.GetString() ?? "02:00";
-            if (sc.TryGetProperty("day_of_week", out var dow)) ComboBoxHelper.SelectByTag(cmbWeekDay, dow.GetInt32().ToString());
-            if (sc.TryGetProperty("day_of_month", out var dom)) txtMonthDay.Text = dom.GetInt32().ToString();
-            if (sc.TryGetProperty("interval_minutes", out var iv)) txtInterval.Text = iv.GetInt32().ToString();
-            if (sc.TryGetProperty("cron_expression", out var cron)) txtCron.Text = cron.GetString();
+            if (TryGetPropertyLoose(sc, out var time, "time")) txtTime.Text = time.GetString() ?? "02:00";
+            if (TryGetPropertyLoose(sc, out var dow, "day_of_week", "dayOfWeek") && TryReadInt32(dow, out var scheduleDayOfWeek))
+                ComboBoxHelper.SelectByTag(cmbWeekDay, scheduleDayOfWeek.ToString());
+            if (TryGetPropertyLoose(sc, out var dom, "day_of_month", "dayOfMonth") && TryReadInt32(dom, out var scheduleDayOfMonth))
+                txtMonthDay.Text = scheduleDayOfMonth.ToString();
+            if (TryGetPropertyLoose(sc, out var iv, "interval_minutes", "intervalMinutes") && TryReadInt32(iv, out var intervalMinutes))
+                txtInterval.Text = intervalMinutes.ToString();
+            if (TryGetPropertyLoose(sc, out var cron, "cron_expression", "cronExpression")) txtCron.Text = cron.GetString();
         }
         catch (Exception ex) { Log.Warning(ex, "解析任务调度配置失败，使用默认值"); }
 
@@ -77,13 +80,16 @@ public partial class EditTaskDialog : Wpf.Ui.Controls.FluentWindow
             switch (task.TaskType)
             {
                 case "BACKUP":
-                    if (tc.TryGetProperty("DatabaseName", out var db)) cmbDbName.Text = db.GetString();
-                    if (tc.TryGetProperty("BackupDir", out var dir)) txtBackupDir.Text = dir.GetString();
-                    if (tc.TryGetProperty("FileNameTemplate", out var tpl)) txtFilePattern.Text = tpl.GetString();
-                    if (tc.TryGetProperty("RetentionDays", out var ret)) txtRetention.Text = ret.GetInt32().ToString();
-                    if (tc.TryGetProperty("UseCompression", out var comp)) chkCompress.IsChecked = comp.GetBoolean();
-                    if (tc.TryGetProperty("VerifyAfterBackup", out var vfy)) chkVerify.IsChecked = vfy.GetBoolean();
-                    if (tc.TryGetProperty("BackupType", out var bt))
+                    if (TryGetPropertyLoose(tc, out var db, "DatabaseName", "database_name")) cmbDbName.Text = db.GetString();
+                    if (TryGetPropertyLoose(tc, out var dir, "BackupDir", "backup_dir")) txtBackupDir.Text = dir.GetString();
+                    if (TryGetPropertyLoose(tc, out var tpl, "FileNameTemplate", "file_name_template")) txtFilePattern.Text = tpl.GetString();
+                    if (TryGetPropertyLoose(tc, out var ret, "RetentionDays", "retention_days") && TryReadInt32(ret, out var backupRetention))
+                        txtRetention.Text = backupRetention.ToString();
+                    if (TryGetPropertyLoose(tc, out var comp, "UseCompression", "use_compression") && TryReadBoolean(comp, out var useCompression))
+                        chkCompress.IsChecked = useCompression;
+                    if (TryGetPropertyLoose(tc, out var vfy, "VerifyAfterBackup", "verify_after_backup") && TryReadBoolean(vfy, out var verifyAfterBackup))
+                        chkVerify.IsChecked = verifyAfterBackup;
+                    if (TryGetPropertyLoose(tc, out var bt, "BackupType", "backup_type"))
                     {
                         var btVal = bt.GetString() ?? "FULL";
                         foreach (ComboBoxItem item in cmbBackupType.Items)
@@ -91,27 +97,29 @@ public partial class EditTaskDialog : Wpf.Ui.Controls.FluentWindow
                     }
                     break;
                 case "PROCEDURE":
-                    if (tc.TryGetProperty("DatabaseName", out var spDb)) cmbSpDb.Text = spDb.GetString();
-                    if (tc.TryGetProperty("ProcedureName", out var sp)) txtSpName.Text = sp.GetString();
+                    if (TryGetPropertyLoose(tc, out var spDb, "DatabaseName", "database_name")) cmbSpDb.Text = spDb.GetString();
+                    if (TryGetPropertyLoose(tc, out var sp, "ProcedureName", "procedure_name")) txtSpName.Text = sp.GetString();
                     // 加载参数列表
-                    if (tc.TryGetProperty("Parameters", out var pars) && pars.ValueKind == JsonValueKind.Array)
+                    if (TryGetPropertyLoose(tc, out var pars, "Parameters", "parameters") && pars.ValueKind == JsonValueKind.Array)
                     {
                         foreach (var p in pars.EnumerateArray())
                         {
-                            var name = p.TryGetProperty("Name", out var n) ? n.GetString() ?? "" : "";
-                            var value = p.TryGetProperty("Value", out var v) ? v.GetString() ?? "" : "";
+                            var name = TryGetPropertyLoose(p, out var n, "Name", "name") ? n.GetString() ?? "" : "";
+                            var value = TryGetPropertyLoose(p, out var v, "Value", "value") ? v.GetString() ?? "" : "";
                             _spParams.Add(new SpParamItem { Name = name, Value = value });
                         }
                     }
                     break;
                 case "CUSTOM_SQL":
-                    if (tc.TryGetProperty("DatabaseName", out var sqlDb)) cmbSqlDb.Text = sqlDb.GetString();
-                    if (tc.TryGetProperty("SqlContent", out var sql)) txtSqlContent.Text = sql.GetString();
+                    if (TryGetPropertyLoose(tc, out var sqlDb, "DatabaseName", "database_name")) cmbSqlDb.Text = sqlDb.GetString();
+                    if (TryGetPropertyLoose(tc, out var sql, "SqlContent", "sql_content")) txtSqlContent.Text = sql.GetString();
                     break;
                 case "BACKUP_CLEANUP":
-                    if (tc.TryGetProperty("TargetDir", out var tdir)) txtCleanupDir.Text = tdir.GetString();
-                    if (tc.TryGetProperty("RetentionDays", out var cret)) txtCleanupRetention.Text = cret.GetInt32().ToString();
-                    if (tc.TryGetProperty("MinKeepCount", out var mk)) txtMinKeep.Text = mk.GetInt32().ToString();
+                    if (TryGetPropertyLoose(tc, out var tdir, "TargetDir", "target_dir", "BackupDir", "backup_dir")) txtCleanupDir.Text = tdir.GetString();
+                    if (TryGetPropertyLoose(tc, out var cret, "RetentionDays", "retention_days") && TryReadInt32(cret, out var cleanupRetention))
+                        txtCleanupRetention.Text = cleanupRetention.ToString();
+                    if (TryGetPropertyLoose(tc, out var mk, "MinKeepCount", "min_keep_count") && TryReadInt32(mk, out var minKeepCount))
+                        txtMinKeep.Text = minKeepCount.ToString();
                     break;
             }
         }
@@ -207,7 +215,7 @@ public partial class EditTaskDialog : Wpf.Ui.Controls.FluentWindow
                 if (!int.TryParse(txtMonthDay.Text, out var monthDay)) { ShowError("每月日期格式错误"); return null; }
                 return JsonSerializer.Serialize(new { time = txtTime.Text.Trim(), day_of_month = monthDay });
             case "INTERVAL":
-                if (!int.TryParse(txtInterval.Text, out var mins)) { ShowError("间隔分钟格式错误"); return null; }
+                if (!int.TryParse(txtInterval.Text, out var mins) || mins <= 0) { ShowError("间隔分钟必须为正整数"); return null; }
                 return JsonSerializer.Serialize(new { interval_minutes = mins });
             case "CRON":
                 if (string.IsNullOrWhiteSpace(txtCron.Text)) { ShowError("Cron 表达式不能为空"); return null; }
@@ -275,6 +283,65 @@ public partial class EditTaskDialog : Wpf.Ui.Controls.FluentWindow
         return fileNameTemplate.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0;
     }
 
+    private static bool TryGetPropertyLoose(JsonElement element, out JsonElement value, params string[] candidateNames)
+    {
+        foreach (var property in element.EnumerateObject())
+        {
+            foreach (var candidateName in candidateNames)
+            {
+                if (NormalizePropertyName(property.Name) == NormalizePropertyName(candidateName))
+                {
+                    value = property.Value;
+                    return true;
+                }
+            }
+        }
+
+        value = default;
+        return false;
+    }
+
+    private static string NormalizePropertyName(string name)
+    {
+        return name.Replace("_", string.Empty, StringComparison.Ordinal)
+            .Replace("-", string.Empty, StringComparison.Ordinal)
+            .Trim()
+            .ToLowerInvariant();
+    }
+
+    private static bool TryReadInt32(JsonElement value, out int result)
+    {
+        if (value.ValueKind == JsonValueKind.Number)
+            return value.TryGetInt32(out result);
+
+        if (value.ValueKind == JsonValueKind.String)
+            return int.TryParse(value.GetString(), out result);
+
+        result = default;
+        return false;
+    }
+
+    private static bool TryReadBoolean(JsonElement value, out bool result)
+    {
+        if (value.ValueKind == JsonValueKind.True)
+        {
+            result = true;
+            return true;
+        }
+
+        if (value.ValueKind == JsonValueKind.False)
+        {
+            result = false;
+            return true;
+        }
+
+        if (value.ValueKind == JsonValueKind.String)
+            return bool.TryParse(value.GetString(), out result);
+
+        result = default;
+        return false;
+    }
+
     private void ShowError(string msg)
     {
         errorText.Text = msg;
@@ -312,6 +379,7 @@ public partial class EditTaskDialog : Wpf.Ui.Controls.FluentWindow
             cmbDbName.ItemsSource = databases;
             cmbSpDb.ItemsSource = databases;
             cmbSqlDb.ItemsSource = databases;
+            errorText.Visibility = Visibility.Collapsed;
         }
         catch (Exception ex)
         {
@@ -319,6 +387,7 @@ public partial class EditTaskDialog : Wpf.Ui.Controls.FluentWindow
             cmbDbName.ItemsSource = null;
             cmbSpDb.ItemsSource = null;
             cmbSqlDb.ItemsSource = null;
+            ShowError($"加载数据库列表失败：{ex.Message}");
         }
     }
 

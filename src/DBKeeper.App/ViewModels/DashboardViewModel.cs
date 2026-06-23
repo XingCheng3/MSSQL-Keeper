@@ -4,6 +4,7 @@ using DBKeeper.App.Services;
 using DBKeeper.Core.Models;
 using DBKeeper.Data.Repositories;
 using System.Collections.ObjectModel;
+using System.Text.Json;
 using System.Windows;
 
 namespace DBKeeper.App.ViewModels;
@@ -23,6 +24,7 @@ public partial class DashboardViewModel : ObservableObject
 
     // 磁盘信息拆分
     [ObservableProperty] private string _diskDrive = "—";
+    [ObservableProperty] private string _diskSource = "未配置备份目录";
     [ObservableProperty] private string _diskFreeGb = "—";
     [ObservableProperty] private string _diskTotalGb = "—";
     [ObservableProperty] private double _diskUsedPercent;
@@ -65,7 +67,8 @@ public partial class DashboardViewModel : ObservableObject
         // 磁盘空间
         try
         {
-            var backupDir = await _settings.GetAsync("default_backup_dir");
+            var backupDirs = CollectBackupDirectories(tasks);
+            var backupDir = backupDirs.FirstOrDefault() ?? await _settings.GetAsync("default_backup_dir");
             System.IO.DriveInfo? targetDrive = null;
 
             if (!string.IsNullOrEmpty(backupDir))
@@ -86,6 +89,7 @@ public partial class DashboardViewModel : ObservableObject
                 var freeGb = targetDrive.AvailableFreeSpace / (1024.0 * 1024 * 1024);
                 var totalGb = targetDrive.TotalSize / (1024.0 * 1024 * 1024);
                 DiskDrive = targetDrive.Name.TrimEnd('\\');
+                DiskSource = BuildDiskSourceText(backupDirs, backupDir);
                 DiskFreeGb = freeGb.ToString("F0");
                 DiskTotalGb = totalGb.ToString("F0");
                 DiskUsedPercent = totalGb > 0 ? ((totalGb - freeGb) / totalGb) * 100 : 0;
@@ -94,6 +98,7 @@ public partial class DashboardViewModel : ObservableObject
         catch
         {
             DiskDrive = "?";
+            DiskSource = "备份目录解析失败";
             DiskFreeGb = "—";
             DiskTotalGb = "—";
         }
@@ -155,6 +160,73 @@ public partial class DashboardViewModel : ObservableObject
             dispatcher.Invoke(Update);
         else
             Update();
+    }
+
+    private static List<string> CollectBackupDirectories(List<TaskItem> tasks)
+    {
+        var dirs = new List<string>();
+        foreach (var task in tasks.Where(t => t.IsEnabled && t.TaskType is "BACKUP" or "BACKUP_CLEANUP"))
+        {
+            if (string.IsNullOrWhiteSpace(task.TaskConfig))
+                continue;
+
+            try
+            {
+                using var document = JsonDocument.Parse(task.TaskConfig);
+                var root = document.RootElement;
+                var key = task.TaskType == "BACKUP" ? "BackupDir" : "TargetDir";
+                if (!TryGetPropertyLoose(root, out var dirElement, key))
+                    continue;
+
+                var dir = dirElement.GetString();
+                if (!string.IsNullOrWhiteSpace(dir))
+                    dirs.Add(dir.Trim());
+            }
+            catch
+            {
+                // 忽略单条脏配置，避免影响概览页整体加载。
+            }
+        }
+
+        return dirs
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static string BuildDiskSourceText(List<string> backupDirs, string? fallbackDir)
+    {
+        if (backupDirs.Count > 0)
+            return backupDirs.Count == 1 ? backupDirs[0] : $"{backupDirs[0]} 等 {backupDirs.Count} 个目录";
+
+        return string.IsNullOrWhiteSpace(fallbackDir)
+            ? "未配置备份目录"
+            : $"默认目录：{fallbackDir}";
+    }
+
+    private static bool TryGetPropertyLoose(JsonElement element, out JsonElement value, params string[] candidateNames)
+    {
+        foreach (var property in element.EnumerateObject())
+        {
+            foreach (var candidateName in candidateNames)
+            {
+                if (NormalizePropertyName(property.Name) == NormalizePropertyName(candidateName))
+                {
+                    value = property.Value;
+                    return true;
+                }
+            }
+        }
+
+        value = default;
+        return false;
+    }
+
+    private static string NormalizePropertyName(string name)
+    {
+        return name.Replace("_", string.Empty, StringComparison.Ordinal)
+            .Replace("-", string.Empty, StringComparison.Ordinal)
+            .Trim()
+            .ToLowerInvariant();
     }
 }
 

@@ -75,6 +75,9 @@
                                        HorizontalAlignment="Right" VerticalAlignment="Center"
                                        Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                         </DockPanel>
+                        <TextBlock Text="{Binding DiskSource}" FontSize="11" Margin="0,0,0,6"
+                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                   TextTrimming="CharacterEllipsis" />
                         <ProgressBar Value="{Binding DiskUsedPercent}" Maximum="100" Height="6"
                                      Margin="0,0,0,6" />
                         <DockPanel>

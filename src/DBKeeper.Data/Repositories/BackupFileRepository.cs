@@ -32,8 +32,8 @@ public class BackupFileRepository : IBackupFileRepository
     {
         using var db = new SqliteConnection(_connStr);
         return await db.ExecuteScalarAsync<int>("""
-            INSERT INTO backup_files (task_id, database_name, file_name, file_path, file_size_bytes, backup_type, created_at, expires_at, status)
-            VALUES (@TaskId, @DatabaseName, @FileName, @FilePath, @FileSizeBytes, @BackupType, @CreatedAt, @ExpiresAt, @Status);
+            INSERT INTO backup_files (task_id, database_name, file_name, file_path, file_size_bytes, backup_type, created_at, expires_at, is_verified, status)
+            VALUES (@TaskId, @DatabaseName, @FileName, @FilePath, @FileSizeBytes, @BackupType, @CreatedAt, @ExpiresAt, @IsVerified, @Status);
             SELECT last_insert_rowid();
             """, file);
     }

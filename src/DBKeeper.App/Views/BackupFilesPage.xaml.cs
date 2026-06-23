@@ -9,6 +9,7 @@ namespace DBKeeper.App.Views;
 public partial class BackupFilesPage : Page
 {
     private BackupFilesViewModel _vm = null!;
+    private bool _isCollectionChangedBound;
 
     public BackupFilesPage()
     {
@@ -23,7 +24,11 @@ public partial class BackupFilesPage : Page
         await _vm.LoadAsync();
         PopulateDatabaseFilter();
         UpdateEmptyState();
-        _vm.Files.CollectionChanged += (_, _) => UpdateEmptyState();
+        if (!_isCollectionChangedBound)
+        {
+            _vm.Files.CollectionChanged += (_, _) => UpdateEmptyState();
+            _isCollectionChangedBound = true;
+        }
     }
 
     private void PopulateDatabaseFilter()
@@ -67,7 +72,21 @@ public partial class BackupFilesPage : Page
             CloseButtonText = "取消"
         }.ShowDialogAsync();
         if (result == Wpf.Ui.Controls.MessageBoxResult.Primary)
-            await _vm.DeleteFileCommand.ExecuteAsync(file);
+        {
+            try
+            {
+                await _vm.DeleteFileCommand.ExecuteAsync(file);
+            }
+            catch (Exception ex)
+            {
+                await new Wpf.Ui.Controls.MessageBox
+                {
+                    Title = "删除失败",
+                    Content = ex.Message,
+                    CloseButtonText = "确定"
+                }.ShowDialogAsync();
+            }
+        }
     }
 
     private async void BatchDelete_Click(object sender, RoutedEventArgs e)
@@ -82,8 +101,20 @@ public partial class BackupFilesPage : Page
         }.ShowDialogAsync();
         if (result == Wpf.Ui.Controls.MessageBoxResult.Primary)
         {
-            await _vm.BatchDeleteCommand.ExecuteAsync(null);
-            btnBatchDelete.IsEnabled = false;
+            try
+            {
+                await _vm.BatchDeleteCommand.ExecuteAsync(null);
+                btnBatchDelete.IsEnabled = false;
+            }
+            catch (Exception ex)
+            {
+                await new Wpf.Ui.Controls.MessageBox
+                {
+                    Title = "批量删除完成，但存在失败项",
+                    Content = ex.Message,
+                    CloseButtonText = "确定"
+                }.ShowDialogAsync();
+            }
         }
     }
 

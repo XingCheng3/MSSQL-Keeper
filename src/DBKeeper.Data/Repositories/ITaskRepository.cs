@@ -10,6 +10,7 @@ public interface ITaskRepository
     Task<int> InsertAsync(TaskItem task);
     Task UpdateAsync(TaskItem task);
     Task DeleteAsync(int id);
+    Task UpdateNextRunAsync(int id, string? nextRunAt);
     Task UpdateLastRunAsync(int id, string status, string? nextRunAt);
     Task<int> CountByConnectionIdAsync(int connectionId);
 }

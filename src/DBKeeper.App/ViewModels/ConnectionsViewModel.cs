@@ -56,6 +56,12 @@ public partial class ConnectionsViewModel : ObservableObject
         finally { item.IsTesting = false; }
     }
 
+    public async Task TestAllConnectionsAsync()
+    {
+        foreach (var item in Connections.ToList())
+            await TestConnectionAsync(item);
+    }
+
     [RelayCommand]
     private async Task DeleteConnectionAsync(ConnectionCardItem item)
     {
@@ -110,6 +116,19 @@ public partial class ConnectionsViewModel : ObservableObject
             Log.Information("更新连接: {Name}", conn.Name);
         }
     }
+
+    public async Task<ConnectionDeleteImpact> GetDeleteImpactAsync(ConnectionCardItem item)
+    {
+        var tasks = await _taskRepo.GetAllAsync();
+        var relatedTasks = tasks
+            .Where(task => task.ConnectionId == item.Model.Id)
+            .Select(task => task.Name)
+            .OrderBy(name => name)
+            .ToList();
+
+        item.PendingDeleteTaskCount = relatedTasks.Count;
+        return new ConnectionDeleteImpact(relatedTasks.Count, relatedTasks);
+    }
 }
 
 /// <summary>
@@ -149,3 +168,5 @@ public partial class ConnectionCardItem : ObservableObject
     /// <summary>待确认删除时关联的任务数</summary>
     [ObservableProperty] private int _pendingDeleteTaskCount;
 }
+
+public sealed record ConnectionDeleteImpact(int TaskCount, List<string> TaskNames);

@@ -10,6 +10,7 @@ namespace DBKeeper.App.Views;
 public partial class TaskListPage : Page
 {
     private TaskListViewModel _vm = null!;
+    private bool _isCollectionChangedBound;
 
     public TaskListPage()
     {
@@ -24,7 +25,11 @@ public partial class TaskListPage : Page
 
         await _vm.LoadAsync();
         UpdateEmptyState();
-        _vm.Tasks.CollectionChanged += (_, _) => UpdateEmptyState();
+        if (!_isCollectionChangedBound)
+        {
+            _vm.Tasks.CollectionChanged += (_, _) => UpdateEmptyState();
+            _isCollectionChangedBound = true;
+        }
     }
 
     private void UpdateEmptyState()
@@ -42,7 +47,6 @@ public partial class TaskListPage : Page
             Log.Information("新建任务: {Name}, 类型={Type}", dialog.Result.Name, dialog.Result.TaskType);
         }
     }
-
 
     private async void NewBackupPlan_Click(object sender, RoutedEventArgs e)
     {

@@ -27,8 +27,11 @@ public partial class SettingsPage : Page
     private async void Page_Loaded(object sender, RoutedEventArgs e)
     {
         _settings = App.Services.GetRequiredService<ISettingsRepository>();
+        await LoadPageDataAsync();
+    }
 
-        // 加载当前设置
+    private async Task LoadPageDataAsync()
+    {
         toggleTray.IsChecked = (await _settings.GetAsync("minimize_to_tray_on_close")) == "true";
         toggleAutoStart.IsChecked = (await _settings.GetAsync("auto_start")) == "true";
 
@@ -114,9 +117,14 @@ public partial class SettingsPage : Page
         if (path != null)
         {
             txtDefaultBackupDir.Text = path;
-            await _settings.SetAsync("default_backup_dir", path);
-            Log.Information("设置变更: default_backup_dir = {Path}", path);
+            await SaveDefaultBackupDirAsync(path);
         }
+    }
+
+    private async void DefaultBackupDir_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (!_loaded) return;
+        await SaveDefaultBackupDirAsync(txtDefaultBackupDir.Text.Trim());
     }
 
     private async void ClearLogs_Click(object sender, RoutedEventArgs e)
@@ -165,51 +173,9 @@ public partial class SettingsPage : Page
 
         try
         {
-            var connRepo = App.Services.GetRequiredService<IConnectionRepository>();
-            var taskRepo = App.Services.GetRequiredService<ITaskRepository>();
-
-            var connections = await connRepo.GetAllAsync();
-            var tasks = await taskRepo.GetAllAsync();
-            var allSettings = await _settings.GetAllAsync();
-
-            // 导出数据：密码脱敏
-            var exportData = new
-            {
-                version = "1.0",
-                exported_at = DateTime.Now.ToString("O"),
-                connections = connections.Select(c => new
-                {
-                    c.Name,
-                    c.Host,
-                    c.Username,
-                    password = "",  // 密码脱敏
-                    c.DefaultDb,
-                    c.TimeoutSec,
-                    c.IsDefault,
-                    c.Remark
-                }),
-                tasks = tasks.Select(t => new
-                {
-                    t.Name,
-                    t.TaskType,
-                    connection_name = t.ConnectionId.HasValue
-                        ? connections.FirstOrDefault(c => c.Id == t.ConnectionId.Value)?.Name ?? ""
-                        : "",
-                    t.IsEnabled,
-                    t.ScheduleType,
-                    t.ScheduleConfig,
-                    t.TaskConfig
-                }),
-                settings = allSettings.ToDictionary(s => s.Key, s => s.Value)
-            };
-
-            var json = JsonSerializer.Serialize(exportData, new JsonSerializerOptions
-            {
-                WriteIndented = true,
-                Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-            });
-
-            await System.IO.File.WriteAllTextAsync(dialog.FileName, json);
+            var transferService = App.Services.GetRequiredService<ConfigurationTransferService>();
+            var json = await transferService.ExportAsync();
+            await System.IO.File.WriteAllTextAsync(dialog.FileName, json, System.Text.Encoding.UTF8);
             Log.Information("配置已导出到: {Path}", dialog.FileName);
 
             await new Wpf.Ui.Controls.MessageBox
@@ -248,135 +214,28 @@ public partial class SettingsPage : Page
         try
         {
             var json = await System.IO.File.ReadAllTextAsync(dialog.FileName);
-            var doc = JsonDocument.Parse(json);
-            var root = doc.RootElement;
+            var transferService = App.Services.GetRequiredService<ConfigurationTransferService>();
+            var importResult = await transferService.ImportAsync(json);
+            await ApplyImportedTasksToSchedulerAsync(importResult);
+            await ApplyRuntimeSettingsAsync();
 
-            // 验证版本
-            if (!root.TryGetProperty("version", out var versionElem))
-            {
-                await ShowMessage("导入失败", "无效的配置文件格式：缺少 version 字段。");
-                return;
-            }
-
-            var connRepo = App.Services.GetRequiredService<IConnectionRepository>();
-            var taskRepo = App.Services.GetRequiredService<ITaskRepository>();
-
-            var existingConns = await connRepo.GetAllAsync();
-            var existingTasks = await taskRepo.GetAllAsync();
-            var newConnNames = new List<string>();
-            var skippedConnNames = new List<string>();
-
-            // 导入连接
-            if (root.TryGetProperty("connections", out var connsElem))
-            {
-                foreach (var connObj in connsElem.EnumerateArray())
-                {
-                    var name = connObj.GetProperty("name").GetString()!;
-                    var existing = existingConns.FirstOrDefault(c => c.Name == name);
-
-                    if (existing != null)
-                    {
-                        // 已存在的连接 → 跳过，保留原密码
-                        skippedConnNames.Add(name);
-                        Log.Information("导入跳过已有连接: {Name}（保留原密码）", name);
-                    }
-                    else
-                    {
-                        // 新连接 → 插入（密码为空）
-                        var conn = new Connection
-                        {
-                            Name = name,
-                            Host = connObj.GetProperty("host").GetString()!,
-                            Username = connObj.GetProperty("username").GetString()!,
-                            Password = "",  // 密码为空，需用户后续填写
-                            DefaultDb = connObj.TryGetProperty("default_db", out var db) ? db.GetString() : null,
-                            TimeoutSec = connObj.TryGetProperty("timeout_sec", out var ts) ? ts.GetInt32() : 30,
-                            IsDefault = connObj.TryGetProperty("is_default", out var id) && id.GetBoolean(),
-                            Remark = connObj.TryGetProperty("remark", out var rm) ? rm.GetString() : null,
-                        };
-                        await connRepo.InsertAsync(conn);
-                        newConnNames.Add(name);
-                        Log.Information("导入新连接: {Name}", name);
-                    }
-                }
-            }
-
-            // 刷新连接列表以获取新插入的 ID
-            existingConns = await connRepo.GetAllAsync();
-
-            // 导入任务
-            if (root.TryGetProperty("tasks", out var tasksElem))
-            {
-                foreach (var taskObj in tasksElem.EnumerateArray())
-                {
-                    var taskName = taskObj.GetProperty("name").GetString()!;
-                    var connName = taskObj.TryGetProperty("connection_name", out var cn) ? cn.GetString() : "";
-
-                    // 匹配连接
-                    var matchedConn = existingConns.FirstOrDefault(c => c.Name == connName);
-                    if (matchedConn == null)
-                    {
-                        Log.Warning("导入任务跳过: {TaskName}（未找到关联连接 {ConnName}）", taskName, connName);
-                        continue;
-                    }
-
-                    // 检查是否已有同名任务
-                    if (existingTasks.Any(t => t.Name == taskName && t.ConnectionId == matchedConn.Id))
-                    {
-                        Log.Information("导入跳过已有任务: {TaskName}", taskName);
-                        continue;
-                    }
-
-                    var task = new TaskItem
-                    {
-                        Name = taskName,
-                        TaskType = taskObj.GetProperty("task_type").GetString()!,
-                        ConnectionId = matchedConn.Id,
-                        IsEnabled = taskObj.TryGetProperty("is_enabled", out var ie) && ie.GetBoolean(),
-                        ScheduleType = taskObj.GetProperty("schedule_type").GetString()!,
-                        ScheduleConfig = taskObj.GetProperty("schedule_config").GetString()!,
-                        TaskConfig = taskObj.GetProperty("task_config").GetString()!,
-                    };
-                    await taskRepo.InsertAsync(task);
-                    Log.Information("导入新任务: {TaskName}", taskName);
-                }
-            }
-
-            // 导入设置
-            if (root.TryGetProperty("settings", out var settingsElem))
-            {
-                foreach (var prop in settingsElem.EnumerateObject())
-                {
-                    // 不覆盖已有设置
-                    var existing = await _settings.GetAsync(prop.Name);
-                    if (string.IsNullOrEmpty(existing))
-                    {
-                        await _settings.SetAsync(prop.Name, prop.Value.GetString() ?? "");
-                    }
-                }
-            }
-
-            // 汇总提示
-            var msg = "配置导入完成。\n\n";
-            if (newConnNames.Count > 0)
-                msg += $"新增连接 ({newConnNames.Count}): {string.Join("、", newConnNames)}\n\n";
-            if (skippedConnNames.Count > 0)
-                msg += $"跳过已有连接 ({skippedConnNames.Count}): {string.Join("、", skippedConnNames)}\n\n";
-            if (newConnNames.Count > 0)
-                msg += "⚠️ 新增连接的密码为空，请前往「连接管理」补填密码。";
-
-            Log.Information("配置导入完成: 新增 {ConnCount} 个连接", newConnNames.Count);
+            var msg = BuildImportSummary(importResult);
+            Log.Information(
+                "配置导入完成: 新增连接 {AddedConnections}，更新连接 {UpdatedConnections}，新增任务 {AddedTasks}，更新任务 {UpdatedTasks}",
+                importResult.AddedConnections,
+                importResult.UpdatedConnections,
+                importResult.AddedTasks,
+                importResult.UpdatedTasks);
 
             await new Wpf.Ui.Controls.MessageBox
             {
                 Title = "导入完成",
-                Content = msg.TrimEnd(),
+                Content = msg,
                 CloseButtonText = "确定"
             }.ShowDialogAsync();
 
-            // 重新加载设置页
             _loaded = false;
-            Page_Loaded(this, new RoutedEventArgs());
+            await LoadPageDataAsync();
         }
         catch (Exception ex)
         {
@@ -398,6 +257,76 @@ public partial class SettingsPage : Page
             Content = content,
             CloseButtonText = "确定"
         }.ShowDialogAsync();
+    }
+
+    private async Task SaveDefaultBackupDirAsync(string path)
+    {
+        await _settings.SetAsync("default_backup_dir", path);
+        Log.Information("设置变更: default_backup_dir = {Path}", path);
+    }
+
+    private async Task ApplyImportedTasksToSchedulerAsync(ConfigurationTransferService.ConfigurationImportResult importResult)
+    {
+        var scheduler = App.Services.GetRequiredService<SchedulerService>();
+        var taskRepo = App.Services.GetRequiredService<ITaskRepository>();
+        foreach (var taskInfo in importResult.ImportedTasks)
+        {
+            if (taskInfo.IsEnabled)
+            {
+                var task = await taskRepo.GetByIdAsync(taskInfo.TaskId);
+                if (task != null)
+                    await scheduler.ScheduleTaskAsync(task);
+            }
+            else
+            {
+                await scheduler.UnscheduleTaskAsync(taskInfo.TaskId);
+            }
+        }
+    }
+
+    private async Task ApplyRuntimeSettingsAsync()
+    {
+        var scheduler = App.Services.GetRequiredService<SchedulerService>();
+        var backupSync = App.Services.GetRequiredService<BackupFileSyncService>();
+
+        var concurrency = await _settings.GetAsync("max_concurrent_tasks") ?? "3";
+        if (int.TryParse(concurrency, out var maxConcurrentTasks))
+            scheduler.UpdateConcurrencyLimit(maxConcurrentTasks);
+
+        var scanInterval = await _settings.GetAsync("backup_scan_interval_min") ?? "30";
+        if (int.TryParse(scanInterval, out var scanMinutes))
+            backupSync.Restart(scanMinutes);
+    }
+
+    private static string BuildImportSummary(ConfigurationTransferService.ConfigurationImportResult importResult)
+    {
+        var lines = new List<string>
+        {
+            "配置导入完成。",
+            string.Empty,
+            $"新增连接：{importResult.AddedConnections}",
+            $"更新连接：{importResult.UpdatedConnections}",
+            $"新增任务：{importResult.AddedTasks}",
+            $"更新任务：{importResult.UpdatedTasks}",
+            $"更新设置：{importResult.UpdatedSettings}"
+        };
+
+        if (importResult.ConnectionsRequiringPassword.Count > 0)
+        {
+            lines.Add(string.Empty);
+            lines.Add("以下连接密码为空，请前往“连接管理”补填：");
+            lines.Add(string.Join("、", importResult.ConnectionsRequiringPassword));
+        }
+
+        if (importResult.SkippedTasks.Count > 0)
+        {
+            lines.Add(string.Empty);
+            lines.Add("以下任务未导入：");
+            foreach (var task in importResult.SkippedTasks)
+                lines.Add($"- {task}");
+        }
+
+        return string.Join(Environment.NewLine, lines);
     }
 
     #endregion

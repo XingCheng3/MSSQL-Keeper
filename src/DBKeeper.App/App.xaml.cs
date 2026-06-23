@@ -57,6 +57,7 @@ public partial class App : Application
         // 后台服务
         services.AddSingleton<ConnectionHeartbeatService>();
         services.AddSingleton<BackupFileSyncService>();
+        services.AddSingleton<ConfigurationTransferService>();
 
         // ViewModel
         services.AddSingleton<ViewModels.ConnectionsViewModel>();

@@ -23,6 +23,8 @@ public partial class ExecutionLogsViewModel : ObservableObject
     [ObservableProperty] private string? _filterStatus;
     [ObservableProperty] private DateTime? _startDate;
     [ObservableProperty] private DateTime? _endDate;
+    [ObservableProperty] private bool _lastExportSucceeded;
+    [ObservableProperty] private string? _lastExportMessage;
 
     private const int PageSize = 50;
 
@@ -108,10 +110,14 @@ public partial class ExecutionLogsViewModel : ObservableObject
             var filePath = dialog.FileName;
             await File.WriteAllTextAsync(filePath, sb.ToString(), new UTF8Encoding(true));
             Log.Information("日志已导出到: {Path}, 共 {Count} 条", filePath, items.Count);
+            LastExportSucceeded = true;
+            LastExportMessage = $"日志已导出到：{filePath}";
         }
         catch (Exception ex)
         {
             Log.Error(ex, "导出 CSV 失败");
+            LastExportSucceeded = false;
+            LastExportMessage = $"导出失败：{ex.Message}";
         }
     }
 

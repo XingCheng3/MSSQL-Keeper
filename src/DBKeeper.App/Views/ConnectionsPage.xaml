@@ -14,6 +14,8 @@
         <!-- 标题栏 -->
         <DockPanel Grid.Row="0" Style="{StaticResource DbkPageTitleBarStyle}">
             <TextBlock Text="连接管理" Style="{StaticResource DbkPageTitleTextStyle}" />
+            <ui:Button Content="全部测试" Margin="0,0,8,0" DockPanel.Dock="Right"
+                       HorizontalAlignment="Right" Click="TestAllConnections_Click" />
             <ui:Button Content="+ 新建连接" Appearance="Primary" DockPanel.Dock="Right"
                        HorizontalAlignment="Right" Click="NewConnection_Click" />
         </DockPanel>

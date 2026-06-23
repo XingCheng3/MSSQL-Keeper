@@ -14,7 +14,7 @@ public class SqlExecutor : ITaskExecutor
     public async Task<ExecutionResult> ExecuteAsync(TaskItem task, Connection connection, CancellationToken cancellationToken = default)
     {
         var config = JsonSerializer.Deserialize<SqlConfig>(task.TaskConfig)!;
-        var result = await SqlServerClient.ExecuteSqlAsync(
+        var result = await SqlServerClient.ExecuteSqlBatchesAsync(
             connection, config.DatabaseName, config.SqlContent, config.TimeoutSec, cancellationToken);
         return ExecutionResult.Ok(result ?? "执行完成");
     }

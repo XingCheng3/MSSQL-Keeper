@@ -1,7 +1,9 @@
 using System.Collections.ObjectModel;
+using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DBKeeper.App.Services;
+using DBKeeper.Core.Helpers;
 using DBKeeper.Core.Models;
 using DBKeeper.Data.Repositories;
 using Serilog;
@@ -11,6 +13,8 @@ namespace DBKeeper.App.ViewModels;
 public partial class BackupFilesViewModel : ObservableObject
 {
     private readonly IBackupFileRepository _repo;
+    private readonly ITaskRepository _taskRepo;
+    private readonly ISettingsRepository _settingsRepo;
     private readonly BackupFileSyncService _syncService;
 
     public ObservableCollection<BackupFile> Files { get; } = [];
@@ -23,9 +27,15 @@ public partial class BackupFilesViewModel : ObservableObject
     [ObservableProperty] private int _selectedCount;
     [ObservableProperty] private string? _lastSyncSummary;
 
-    public BackupFilesViewModel(IBackupFileRepository repo, BackupFileSyncService syncService)
+    public BackupFilesViewModel(
+        IBackupFileRepository repo,
+        ITaskRepository taskRepo,
+        ISettingsRepository settingsRepo,
+        BackupFileSyncService syncService)
     {
         _repo = repo;
+        _taskRepo = taskRepo;
+        _settingsRepo = settingsRepo;
         _syncService = syncService;
     }
 
@@ -110,16 +120,31 @@ public partial class BackupFilesViewModel : ObservableObject
     [RelayCommand]
     private async Task DeleteFileAsync(BackupFile file)
     {
-        // 删除磁盘文件（如果存在）
-        try { if (System.IO.File.Exists(file.FilePath)) System.IO.File.Delete(file.FilePath); }
-        catch (Exception ex) { Log.Warning(ex, "删除磁盘文件失败: {Path}", file.FilePath); }
+        var allowedDirectories = await GetAllowedBackupDirectoriesAsync();
+        if (!BackupPathGuard.IsAllowedBackupFile(file.FilePath, allowedDirectories))
+            throw new InvalidOperationException($"不允许删除非备份目录文件：{file.FilePath}");
 
-        // 从数据库物理删除记录
-        await _repo.DeleteAsync(file.Id);
-        Files.Remove(file);
+        if (System.IO.File.Exists(file.FilePath))
+        {
+            try
+            {
+                System.IO.File.Delete(file.FilePath);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "删除磁盘文件失败: {Path}", file.FilePath);
+                throw new InvalidOperationException($"删除磁盘文件失败：{ex.Message}", ex);
+            }
+        }
+
+        var deletedAt = DateTime.Now.ToString("O");
+        await _repo.UpdateStatusAsync(file.Id, "DELETED", deletedAt);
+        file.Status = "DELETED";
+        file.DeletedAt = deletedAt;
         SelectedFiles.Remove(file);
         SelectedCount = SelectedFiles.Count;
-        Log.Information("删除备份记录: {FileName}", file.FileName);
+        await LoadAsync();
+        Log.Information("删除备份记录并标记为 DELETED: {FileName}", file.FileName);
     }
 
     [RelayCommand]
@@ -128,18 +153,37 @@ public partial class BackupFilesViewModel : ObservableObject
         if (SelectedFiles.Count == 0) return;
 
         var toDelete = SelectedFiles.ToList();
+        var allowedDirectories = await GetAllowedBackupDirectoriesAsync();
+        var failedDeletes = new List<string>();
+        var deletedAt = DateTime.Now.ToString("O");
         foreach (var file in toDelete)
         {
-            try { if (System.IO.File.Exists(file.FilePath)) System.IO.File.Delete(file.FilePath); }
-            catch (Exception ex) { Log.Warning(ex, "批量删除-磁盘文件删除失败: {Path}", file.FilePath); }
+            if (!BackupPathGuard.IsAllowedBackupFile(file.FilePath, allowedDirectories))
+            {
+                failedDeletes.Add($"{file.FileName}: 文件路径不在允许的备份目录内");
+                continue;
+            }
 
-            await _repo.DeleteAsync(file.Id);
-            Files.Remove(file);
-            Log.Information("批量删除备份记录: {FileName}", file.FileName);
+            try
+            {
+                if (System.IO.File.Exists(file.FilePath))
+                    System.IO.File.Delete(file.FilePath);
+                await _repo.UpdateStatusAsync(file.Id, "DELETED", deletedAt);
+                Log.Information("批量删除备份记录并标记为 DELETED: {FileName}", file.FileName);
+            }
+            catch (Exception ex)
+            {
+                failedDeletes.Add($"{file.FileName}: {ex.Message}");
+                Log.Warning(ex, "批量删除-磁盘文件删除失败: {Path}", file.FilePath);
+            }
         }
 
         SelectedFiles.Clear();
         SelectedCount = 0;
+        await LoadAsync();
+
+        if (failedDeletes.Count > 0)
+            throw new InvalidOperationException("以下文件删除失败：" + Environment.NewLine + string.Join(Environment.NewLine, failedDeletes));
     }
 
     public void ToggleSelection(BackupFile file, bool isSelected)
@@ -178,5 +222,41 @@ public partial class BackupFilesViewModel : ObservableObject
         if (dir != null && System.IO.Directory.Exists(dir))
             System.Diagnostics.Process.Start("explorer.exe", dir);
         return Task.CompletedTask;
+    }
+
+    private async Task<HashSet<string>> GetAllowedBackupDirectoriesAsync()
+    {
+        var directories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var defaultBackupDir = await _settingsRepo.GetAsync("default_backup_dir");
+        if (!string.IsNullOrWhiteSpace(defaultBackupDir))
+            directories.Add(defaultBackupDir);
+
+        var tasks = await _taskRepo.GetAllAsync();
+        foreach (var task in tasks.Where(task => task.TaskType is "BACKUP" or "BACKUP_CLEANUP"))
+        {
+            if (string.IsNullOrWhiteSpace(task.TaskConfig))
+                continue;
+
+            try
+            {
+                using var document = JsonDocument.Parse(task.TaskConfig);
+                if (document.RootElement.TryGetProperty("BackupDir", out var backupDir)
+                    && !string.IsNullOrWhiteSpace(backupDir.GetString()))
+                {
+                    directories.Add(backupDir.GetString()!);
+                }
+                else if (document.RootElement.TryGetProperty("TargetDir", out var targetDir)
+                         && !string.IsNullOrWhiteSpace(targetDir.GetString()))
+                {
+                    directories.Add(targetDir.GetString()!);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "解析任务目录失败: {TaskName}", task.Name);
+            }
+        }
+
+        return directories;
     }
 }

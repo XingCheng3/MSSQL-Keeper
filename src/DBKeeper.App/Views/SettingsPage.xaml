@@ -63,7 +63,8 @@
                         <DockPanel>
                             <ui:Button Content="浏览" DockPanel.Dock="Right" Margin="8,0,0,0"
                                        Click="BrowseBackupDir_Click" />
-                            <ui:TextBox x:Name="txtDefaultBackupDir" PlaceholderText="D:\Backup" />
+                            <ui:TextBox x:Name="txtDefaultBackupDir" PlaceholderText="D:\Backup"
+                                        LostFocus="DefaultBackupDir_LostFocus" />
                         </DockPanel>
                     </StackPanel>
                 </Border>
