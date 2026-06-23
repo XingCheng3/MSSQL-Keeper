@@ -72,9 +72,8 @@ public class BackupFileSyncService
             int totalChecked = 0;
             int totalDeleted = 0;
 
-            // 获取所有备份任务
             var allTasks = await _taskRepo.GetAllAsync();
-            var backupTasks = allTasks.Where(t => t.TaskType == "BACKUP" || t.TaskType == "BACKUP_CLEANUP");
+            var backupTasks = allTasks.Where(t => t.TaskType is "BACKUP" or "BACKUP_CLEANUP" or "DIRECTORY_SYNC");
 
             // 收集所有备份目录
             var directories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -82,11 +81,9 @@ public class BackupFileSyncService
             {
                 if (!string.IsNullOrEmpty(task.TaskConfig))
                 {
-                    // 从 TaskConfig JSON 中提取目录
                     try
                     {
                         var config = System.Text.Json.JsonDocument.Parse(task.TaskConfig);
-                        // BACKUP 类型用 BackupDir，BACKUP_CLEANUP 类型用 TargetDir
                         string? dir = null;
                         if (config.RootElement.TryGetProperty("BackupDir", out var dirElem))
                             dir = dirElem.GetString();
@@ -108,7 +105,7 @@ public class BackupFileSyncService
                 foreach (var file in activeFiles)
                 {
                     totalChecked++;
-                    if (!System.IO.File.Exists(file.FilePath))
+                    if (!PathExists(file.FilePath))
                     {
                         await _backupRepo.UpdateStatusAsync(file.Id, "DELETED", DateTime.Now.ToString("O"));
                         totalDeleted++;
@@ -122,11 +119,11 @@ public class BackupFileSyncService
             foreach (var file in allActive)
             {
                 // 跳过已在目录扫描中检查过的
-                if (directories.Any(d => IsPathUnderDirectory(file.FilePath, d)))
+                if (directories.Any(d => IsSameOrUnderDirectory(file.FilePath, d)))
                     continue;
 
                 totalChecked++;
-                if (!System.IO.File.Exists(file.FilePath))
+                if (!PathExists(file.FilePath))
                 {
                     await _backupRepo.UpdateStatusAsync(file.Id, "DELETED", DateTime.Now.ToString("O"));
                     totalDeleted++;
@@ -166,20 +163,29 @@ public class BackupFileSyncService
         }
     }
 
-    private static bool IsPathUnderDirectory(string filePath, string directory)
+    private static bool IsSameOrUnderDirectory(string filePath, string directory)
     {
         try
         {
-            var fullFilePath = Path.GetFullPath(filePath);
+            var fullFilePath = Path.GetFullPath(filePath)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var fullDirectoryWithoutSeparator = Path.GetFullPath(directory)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
             var fullDirectory = Path.GetFullPath(directory)
                 .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
                 + Path.DirectorySeparatorChar;
-            return fullFilePath.StartsWith(fullDirectory, StringComparison.OrdinalIgnoreCase);
+            return string.Equals(fullFilePath, fullDirectoryWithoutSeparator, StringComparison.OrdinalIgnoreCase)
+                || fullFilePath.StartsWith(fullDirectory, StringComparison.OrdinalIgnoreCase);
         }
         catch
         {
             return false;
         }
+    }
+
+    private static bool PathExists(string path)
+    {
+        return System.IO.File.Exists(path) || System.IO.Directory.Exists(path);
     }
 }
 

@@ -39,6 +39,7 @@
                     <ComboBoxItem Content="自定义 SQL" Tag="CUSTOM_SQL" />
                     <ComboBoxItem Content="备份清理" Tag="BACKUP_CLEANUP" />
                     <ComboBoxItem Content="数据归档" Tag="DATA_ARCHIVE" />
+                    <ComboBoxItem Content="目录同步" Tag="DIRECTORY_SYNC" />
                 </ComboBox>
 
                 <TextBlock Text="绑定连接" FontSize="13" Margin="0,0,0,4" />
@@ -186,6 +187,83 @@
                     <ui:TextBox x:Name="txtCleanupRetention" Text="30" Margin="0,0,0,10" />
                     <TextBlock Text="最少保留份数" FontSize="13" Margin="0,0,0,4" />
                     <ui:TextBox x:Name="txtMinKeep" Text="3" Margin="0,0,0,10" />
+                </StackPanel>
+
+                <!-- 目录同步配置 -->
+                <StackPanel x:Name="panelDirectorySync" Visibility="Collapsed">
+                    <TextBlock Text="目录同步配置" FontSize="14" FontWeight="SemiBold" Margin="0,8,0,8"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Text="源目录" FontSize="13" Margin="0,0,0,4" />
+                    <DockPanel Margin="0,0,0,10">
+                        <ui:Button Content="浏览" DockPanel.Dock="Right" Margin="8,0,0,0" Click="BrowseDirectorySyncSource_Click" />
+                        <ui:TextBox x:Name="txtDirectorySourceDir" PlaceholderText="D:\Photos" />
+                    </DockPanel>
+                    <TextBlock Text="目标目录" FontSize="13" Margin="0,0,0,4" />
+                    <DockPanel Margin="0,0,0,10">
+                        <ui:Button Content="浏览" DockPanel.Dock="Right" Margin="8,0,0,0" Click="BrowseDirectorySyncTarget_Click" />
+                        <ui:TextBox x:Name="txtDirectoryTargetDir" PlaceholderText="E:\Backup\Photos" />
+                    </DockPanel>
+                    <TextBlock Text="同步方式" FontSize="13" Margin="0,0,0,4" />
+                    <ComboBox x:Name="cmbDirectorySyncMode" Margin="0,0,0,10" SelectionChanged="DirectorySyncMode_Changed">
+                        <ComboBoxItem Content="差量同步" Tag="DIFF" IsSelected="True" />
+                        <ComboBoxItem Content="全量同步" Tag="FULL" />
+                        <ComboBoxItem Content="压缩备份" Tag="ARCHIVE" />
+                    </ComboBox>
+
+                    <StackPanel x:Name="panelDirectoryArchive" Visibility="Collapsed">
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="8" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="压缩格式" FontSize="13" Margin="0,0,0,4" />
+                                <ComboBox x:Name="cmbDirectoryArchiveFormat">
+                                    <ComboBoxItem Content="ZIP" Tag="ZIP" IsSelected="True" />
+                                    <ComboBoxItem Content="7Z" Tag="7Z" />
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="压缩等级" FontSize="13" Margin="0,0,0,4" />
+                                <ComboBox x:Name="cmbDirectoryCompressionLevel">
+                                    <ComboBoxItem Content="快速" Tag="FAST" />
+                                    <ComboBoxItem Content="均衡" Tag="BALANCED" IsSelected="True" />
+                                    <ComboBoxItem Content="最小体积" Tag="SMALLEST" />
+                                </ComboBox>
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="压缩文件名规则" FontSize="13" Margin="0,0,0,4" />
+                        <ui:TextBox x:Name="txtDirectoryFilePattern" Text="{}{NAME}_{DATE}_{TIME}.{EXT}" Margin="0,0,0,10" />
+                    </StackPanel>
+
+                    <Grid Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="8" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="保留天数" FontSize="13" Margin="0,0,0,4" />
+                            <ui:TextBox x:Name="txtDirectoryRetention" Text="30" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="最少保留份数" FontSize="13" Margin="0,0,0,4" />
+                            <ui:TextBox x:Name="txtDirectoryMinKeep" Text="3" />
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Text="排除规则" FontSize="13" Margin="0,0,0,4" />
+                    <ui:TextBox x:Name="txtDirectoryExcludePatterns" PlaceholderText="*.tmp;Thumbs.db;*.log" Margin="0,0,0,10" />
+                    <TextBlock Text="超时秒数" FontSize="13" Margin="0,0,0,4" />
+                    <ui:TextBox x:Name="txtDirectoryTimeout" Text="1800" Margin="0,0,0,10" />
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                        <CheckBox x:Name="chkDirectoryIncludeSubdirectories" Content="包含子目录" IsChecked="True" Margin="0,0,16,0" />
+                        <CheckBox x:Name="chkDirectoryOverwriteChanged" Content="覆盖变化文件" IsChecked="True" />
+                    </StackPanel>
+                    <TextBlock Text="差量同步只复制新增或变化文件，不删除目标目录中多余文件；全量同步会先清空目标目录后再复制。"
+                               FontSize="11" Margin="0,0,0,10"
+                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                               TextWrapping="Wrap" />
                 </StackPanel>
 
                 <!-- 数据归档配置 -->

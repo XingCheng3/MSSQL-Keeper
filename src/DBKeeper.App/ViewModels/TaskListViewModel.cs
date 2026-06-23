@@ -41,7 +41,9 @@ public partial class TaskListViewModel : ObservableObject
         {
             var connName = t.ConnectionId.HasValue && connMap.TryGetValue(t.ConnectionId.Value, out var name)
                 ? name
-                : "未绑定连接";
+                : t.TaskType is "DIRECTORY_SYNC" or "BACKUP_CLEANUP"
+                    ? "本地任务"
+                    : "未绑定连接";
             _allTasks.Add(new TaskListItem(t, connName));
         }
 
@@ -206,6 +208,7 @@ public partial class TaskListItem : ObservableObject
         "CUSTOM_SQL" => "自定义SQL",
         "BACKUP_CLEANUP" => "备份清理",
         "DATA_ARCHIVE" => "数据归档",
+        "DIRECTORY_SYNC" => "目录同步",
         _ => Model.TaskType
     };
 

@@ -30,6 +30,7 @@
                 <ComboBoxItem Content="自定义SQL" Tag="CUSTOM_SQL" />
                 <ComboBoxItem Content="备份清理" Tag="BACKUP_CLEANUP" />
                 <ComboBoxItem Content="数据归档" Tag="DATA_ARCHIVE" />
+                <ComboBoxItem Content="目录同步" Tag="DIRECTORY_SYNC" />
             </ComboBox>
             <ComboBox x:Name="cmbStatus" Width="120" Margin="0,0,8,0" SelectionChanged="Filter_Changed"
                       MaxDropDownHeight="220" ScrollViewer.VerticalScrollBarVisibility="Auto">

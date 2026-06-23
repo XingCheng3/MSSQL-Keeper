@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Extensions.DependencyInjection;
+using DBKeeper.Core.Helpers;
 using DBKeeper.Core.Models;
 using DBKeeper.Data;
 using DBKeeper.Data.Repositories;
@@ -145,6 +146,29 @@ public partial class EditTaskDialog : Wpf.Ui.Controls.FluentWindow
                     if (TryGetPropertyLoose(tc, out var skipExisting, "SkipExistingRows", "skip_existing_rows") && TryReadBoolean(skipExisting, out var archiveSkipExisting))
                         chkArchiveSkipExisting.IsChecked = archiveSkipExisting;
                     break;
+                case "DIRECTORY_SYNC":
+                    if (TryGetPropertyLoose(tc, out var sourceDir, "SourceDir", "source_dir")) txtDirectorySourceDir.Text = sourceDir.GetString();
+                    if (TryGetPropertyLoose(tc, out var targetDir, "TargetDir", "target_dir")) txtDirectoryTargetDir.Text = targetDir.GetString();
+                    if (TryGetPropertyLoose(tc, out var syncMode, "SyncMode", "sync_mode"))
+                        ComboBoxHelper.SelectByTag(cmbDirectorySyncMode, syncMode.GetString() ?? "DIFF");
+                    if (TryGetPropertyLoose(tc, out var archiveFormat, "ArchiveFormat", "archive_format"))
+                        ComboBoxHelper.SelectByTag(cmbDirectoryArchiveFormat, archiveFormat.GetString() ?? "ZIP");
+                    if (TryGetPropertyLoose(tc, out var compressionLevel, "CompressionLevel", "compression_level"))
+                        ComboBoxHelper.SelectByTag(cmbDirectoryCompressionLevel, compressionLevel.GetString() ?? "BALANCED");
+                    if (TryGetPropertyLoose(tc, out var dirTpl, "FileNameTemplate", "file_name_template")) txtDirectoryFilePattern.Text = dirTpl.GetString();
+                    if (TryGetPropertyLoose(tc, out var dirRetention, "RetentionDays", "retention_days") && TryReadInt32(dirRetention, out var directoryRetention))
+                        txtDirectoryRetention.Text = directoryRetention.ToString();
+                    if (TryGetPropertyLoose(tc, out var dirMinKeep, "MinKeepCount", "min_keep_count") && TryReadInt32(dirMinKeep, out var directoryMinKeep))
+                        txtDirectoryMinKeep.Text = directoryMinKeep.ToString();
+                    if (TryGetPropertyLoose(tc, out var includeSubdirectories, "IncludeSubdirectories", "include_subdirectories") && TryReadBoolean(includeSubdirectories, out var directoryIncludeSubdirectories))
+                        chkDirectoryIncludeSubdirectories.IsChecked = directoryIncludeSubdirectories;
+                    if (TryGetPropertyLoose(tc, out var overwriteChanged, "OverwriteChangedFiles", "overwrite_changed_files") && TryReadBoolean(overwriteChanged, out var directoryOverwriteChanged))
+                        chkDirectoryOverwriteChanged.IsChecked = directoryOverwriteChanged;
+                    if (TryGetPropertyLoose(tc, out var excludePatterns, "ExcludePatterns", "exclude_patterns")) txtDirectoryExcludePatterns.Text = excludePatterns.GetString();
+                    if (TryGetPropertyLoose(tc, out var dirTimeout, "TimeoutSec", "timeout_sec") && TryReadInt32(dirTimeout, out var directoryTimeout))
+                        txtDirectoryTimeout.Text = directoryTimeout.ToString();
+                    UpdateDirectoryArchiveVisibility();
+                    break;
             }
         }
         catch (Exception ex) { Log.Warning(ex, "解析任务配置失败，使用默认值"); }
@@ -161,6 +185,8 @@ public partial class EditTaskDialog : Wpf.Ui.Controls.FluentWindow
         panelSql.Visibility = type == "CUSTOM_SQL" ? Visibility.Visible : Visibility.Collapsed;
         panelCleanup.Visibility = type == "BACKUP_CLEANUP" ? Visibility.Visible : Visibility.Collapsed;
         panelArchive.Visibility = type == "DATA_ARCHIVE" ? Visibility.Visible : Visibility.Collapsed;
+        panelDirectorySync.Visibility = type == "DIRECTORY_SYNC" ? Visibility.Visible : Visibility.Collapsed;
+        cmbConnection.IsEnabled = RequiresConnection(type);
     }
 
     private void ScheduleType_Changed(object sender, SelectionChangedEventArgs e)
@@ -187,18 +213,44 @@ public partial class EditTaskDialog : Wpf.Ui.Controls.FluentWindow
         if (path != null) txtCleanupDir.Text = path;
     }
 
+    private void BrowseDirectorySyncSource_Click(object sender, RoutedEventArgs e)
+    {
+        var path = Helpers.FolderPicker.Show("选择源目录", this);
+        if (path != null) txtDirectorySourceDir.Text = path;
+    }
+
+    private void BrowseDirectorySyncTarget_Click(object sender, RoutedEventArgs e)
+    {
+        var path = Helpers.FolderPicker.Show("选择目标目录", this);
+        if (path != null) txtDirectoryTargetDir.Text = path;
+    }
+
+    private void DirectorySyncMode_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        UpdateDirectoryArchiveVisibility();
+    }
+
+    private void UpdateDirectoryArchiveVisibility()
+    {
+        if (panelDirectoryArchive == null) return;
+        var mode = (cmbDirectorySyncMode.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "DIFF";
+        panelDirectoryArchive.Visibility = mode == "ARCHIVE" ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     private void Save_Click(object sender, RoutedEventArgs e)
     {
         if (string.IsNullOrWhiteSpace(txtName.Text))
         {
             ShowError("任务名称不能为空"); return;
         }
-        if (cmbConnection.SelectedItem is not Connection conn)
+
+        var taskType = (cmbType.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "BACKUP";
+        Connection? conn = cmbConnection.SelectedItem as Connection;
+        if (RequiresConnection(taskType) && conn == null)
         {
             ShowError("请选择绑定连接"); return;
         }
 
-        var taskType = (cmbType.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "BACKUP";
         var scheduleType = (cmbSchedule.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "DAILY";
 
         // 构建调度配置 JSON
@@ -214,7 +266,7 @@ public partial class EditTaskDialog : Wpf.Ui.Controls.FluentWindow
             Id = _existing?.Id ?? 0,
             Name = txtName.Text.Trim(),
             TaskType = taskType,
-            ConnectionId = conn.Id,
+            ConnectionId = conn?.Id,
             IsEnabled = _existing?.IsEnabled ?? true,
             ScheduleType = scheduleType,
             ScheduleConfig = scheduleConfig,
@@ -299,9 +351,78 @@ public partial class EditTaskDialog : Wpf.Ui.Controls.FluentWindow
                 });
             case "DATA_ARCHIVE":
                 return BuildArchiveTaskConfig();
+            case "DIRECTORY_SYNC":
+                return BuildDirectorySyncTaskConfig();
             default:
                 return "{}";
         }
+    }
+
+    private string? BuildDirectorySyncTaskConfig()
+    {
+        if (string.IsNullOrWhiteSpace(txtDirectorySourceDir.Text)) { ShowError("源目录不能为空"); return null; }
+        if (string.IsNullOrWhiteSpace(txtDirectoryTargetDir.Text)) { ShowError("目标目录不能为空"); return null; }
+        if (!Directory.Exists(txtDirectorySourceDir.Text.Trim())) { ShowError("源目录不存在"); return null; }
+        if (!ValidateDirectorySyncPaths(txtDirectorySourceDir.Text.Trim(), txtDirectoryTargetDir.Text.Trim())) return null;
+        if (!int.TryParse(txtDirectoryRetention.Text, out var retentionDays) || retentionDays <= 0) { ShowError("保留天数必须为正整数"); return null; }
+        if (!int.TryParse(txtDirectoryMinKeep.Text, out var minKeepCount) || minKeepCount < 0) { ShowError("最少保留份数不能小于 0"); return null; }
+        if (!int.TryParse(txtDirectoryTimeout.Text, out var timeoutSec) || timeoutSec <= 0) { ShowError("超时秒数必须为正整数"); return null; }
+
+        var syncMode = (cmbDirectorySyncMode.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "DIFF";
+        var archiveFormat = (cmbDirectoryArchiveFormat.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "ZIP";
+        var compressionLevel = (cmbDirectoryCompressionLevel.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "BALANCED";
+        if (syncMode == "ARCHIVE" && ContainsInvalidFileNameChar(txtDirectoryFilePattern.Text))
+        {
+            ShowError("压缩文件名规则包含非法文件名字符");
+            return null;
+        }
+
+        return JsonSerializer.Serialize(new
+        {
+            SourceDir = txtDirectorySourceDir.Text.Trim(),
+            TargetDir = txtDirectoryTargetDir.Text.Trim(),
+            SyncMode = syncMode,
+            ArchiveFormat = archiveFormat,
+            CompressionLevel = compressionLevel,
+            FileNameTemplate = txtDirectoryFilePattern.Text.Trim(),
+            RetentionDays = retentionDays,
+            MinKeepCount = minKeepCount,
+            IncludeSubdirectories = chkDirectoryIncludeSubdirectories.IsChecked == true,
+            OverwriteChangedFiles = chkDirectoryOverwriteChanged.IsChecked == true,
+            ExcludePatterns = txtDirectoryExcludePatterns.Text.Trim(),
+            TimeoutSec = timeoutSec
+        });
+    }
+
+    private bool ValidateDirectorySyncPaths(string sourceDir, string targetDir)
+    {
+        var source = Path.GetFullPath(sourceDir)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var target = Path.GetFullPath(targetDir)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        if (string.Equals(source, target, StringComparison.OrdinalIgnoreCase))
+        {
+            ShowError("源目录和目标目录不能相同");
+            return false;
+        }
+        if (BackupPathGuard.IsRootDirectory(target))
+        {
+            ShowError("目标目录不能是磁盘根目录");
+            return false;
+        }
+        if (BackupPathGuard.IsPathUnderDirectory(target, source))
+        {
+            ShowError("目标目录不能位于源目录内部");
+            return false;
+        }
+        if (BackupPathGuard.IsPathUnderDirectory(source, target))
+        {
+            ShowError("源目录不能位于目标目录内部");
+            return false;
+        }
+
+        return true;
     }
 
     private string? BuildArchiveTaskConfig()
@@ -348,6 +469,11 @@ public partial class EditTaskDialog : Wpf.Ui.Controls.FluentWindow
     {
         if (string.IsNullOrWhiteSpace(fileNameTemplate)) return false;
         return fileNameTemplate.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0;
+    }
+
+    private static bool RequiresConnection(string? taskType)
+    {
+        return taskType is "BACKUP" or "PROCEDURE" or "CUSTOM_SQL" or "DATA_ARCHIVE";
     }
 
     private static bool TryGetPropertyLoose(JsonElement element, out JsonElement value, params string[] candidateNames)

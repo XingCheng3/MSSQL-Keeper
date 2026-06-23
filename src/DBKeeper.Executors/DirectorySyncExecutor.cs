@@ -91,7 +91,7 @@ public class DirectorySyncExecutor : ITaskExecutor
             }
         }
 
-        return BuildSyncResult(config, "DIR_DIFF", copiedCount, skippedCount, copiedBytes, failedFiles);
+        return BuildSyncResult("DIR_DIFF", config, copiedCount, skippedCount, copiedBytes, failedFiles);
     }
 
     private static async Task<ExecutionResult> ExecuteFullSyncAsync(DirectorySyncConfig config, CancellationToken cancellationToken)

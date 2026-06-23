@@ -64,13 +64,14 @@ public class BackupFileRepository : IBackupFileRepository
     public async Task<List<BackupFile>> GetActiveByDirAsync(string directory)
     {
         // 确保目录以分隔符结尾，避免 "C:\Backup" 匹配到 "C:\BackupArchive\"
-        var normalizedDir = directory.TrimEnd(System.IO.Path.DirectorySeparatorChar)
-            + System.IO.Path.DirectorySeparatorChar;
+        var normalizedDir = directory.TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar);
+        var normalizedDirWithSeparator = normalizedDir + System.IO.Path.DirectorySeparatorChar;
         using var db = new SqliteConnection(_connStr);
         var result = await db.QueryAsync<BackupFile>("""
             SELECT * FROM backup_files 
-            WHERE status IN ('NORMAL','SIZE_ANOMALY') AND file_path LIKE @prefix
-            """, new { prefix = normalizedDir + "%" });
+            WHERE status IN ('NORMAL','SIZE_ANOMALY','WARNING')
+              AND (file_path = @dir OR file_path LIKE @prefix)
+            """, new { dir = normalizedDir, prefix = normalizedDirWithSeparator + "%" });
         return result.ToList();
     }
 
@@ -82,7 +83,7 @@ public class BackupFileRepository : IBackupFileRepository
         using var db = new SqliteConnection(_connStr);
         var result = await db.QueryAsync<BackupFile>("""
             SELECT * FROM backup_files 
-            WHERE status IN ('NORMAL','SIZE_ANOMALY')
+            WHERE status IN ('NORMAL','SIZE_ANOMALY','WARNING')
             ORDER BY created_at DESC
             """);
         return result.ToList();

@@ -22,7 +22,12 @@
         <StackPanel Grid.Row="1" Style="{StaticResource DbkFilterBarStyle}">
             <ComboBox x:Name="cmbDatabase" Width="120" Margin="0,0,8,0" SelectionChanged="Filter_Changed"
                       MaxDropDownHeight="260" ScrollViewer.VerticalScrollBarVisibility="Auto">
-                <ComboBoxItem Content="全部数据库" IsSelected="True" />
+                <ComboBoxItem Content="全部来源" IsSelected="True" />
+            </ComboBox>
+            <ComboBox x:Name="cmbSourceType" Width="110" Margin="0,0,8,0" SelectionChanged="Filter_Changed">
+                <ComboBoxItem Content="全部类型" IsSelected="True" />
+                <ComboBoxItem Content="数据库" Tag="DATABASE" />
+                <ComboBoxItem Content="目录" Tag="DIRECTORY" />
             </ComboBox>
             <ComboBox x:Name="cmbStatus" Width="100" Margin="0,0,8,0" SelectionChanged="Filter_Changed">
                 <ComboBoxItem Content="全部状态" IsSelected="True" />
@@ -61,7 +66,8 @@
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
                 <DataGridTextColumn Header="文件名" Binding="{Binding FileName}" Width="*" />
-                <DataGridTextColumn Header="数据库" Binding="{Binding DatabaseName}" Width="130" />
+                <DataGridTextColumn Header="来源" Binding="{Binding SourceDisplay}" Width="130" />
+                <DataGridTextColumn Header="来源类型" Binding="{Binding SourceTypeDisplay}" Width="75" />
                 <DataGridTextColumn Header="大小" Binding="{Binding FileSizeBytes, Converter={StaticResource FileSize}}" Width="80" />
                 <DataGridTextColumn Header="类型" Binding="{Binding BackupType}" Width="55" />
                 <DataGridTextColumn Header="备份时间" Binding="{Binding CreatedAt, Converter={StaticResource IsoDateTime}}" Width="155" />

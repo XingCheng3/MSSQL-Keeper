@@ -21,6 +21,7 @@ public partial class BackupFilesViewModel : ObservableObject
     public ObservableCollection<BackupFile> SelectedFiles { get; } = [];
 
     [ObservableProperty] private string? _filterDatabase;
+    [ObservableProperty] private string? _filterSourceType;
     [ObservableProperty] private string? _filterStatus;
     [ObservableProperty] private DateTime? _filterDateFrom;
     [ObservableProperty] private DateTime? _filterDateTo;
@@ -49,7 +50,8 @@ public partial class BackupFilesViewModel : ObservableObject
         foreach (var f in list)
         {
             // 过滤
-            if (!string.IsNullOrEmpty(FilterDatabase) && f.DatabaseName != FilterDatabase) continue;
+            if (!string.IsNullOrEmpty(FilterDatabase) && f.SourceDisplay != FilterDatabase) continue;
+            if (!string.IsNullOrEmpty(FilterSourceType) && f.SourceType != FilterSourceType) continue;
             if (!string.IsNullOrEmpty(FilterStatus) && f.Status != FilterStatus) continue;
             if (FilterDateFrom.HasValue && DateTime.TryParse(f.CreatedAt, out var created) && created < FilterDateFrom.Value) continue;
             if (FilterDateTo.HasValue && DateTime.TryParse(f.CreatedAt, out var created2) && created2 > FilterDateTo.Value.AddDays(1)) continue;
@@ -121,20 +123,17 @@ public partial class BackupFilesViewModel : ObservableObject
     private async Task DeleteFileAsync(BackupFile file)
     {
         var allowedDirectories = await GetAllowedBackupDirectoriesAsync();
-        if (!BackupPathGuard.IsAllowedBackupFile(file.FilePath, allowedDirectories))
-            throw new InvalidOperationException($"不允许删除非备份目录文件：{file.FilePath}");
+        if (!BackupPathGuard.IsAllowedBackupPath(file.FilePath, allowedDirectories))
+            throw new InvalidOperationException($"不允许删除非备份目录路径：{file.FilePath}");
 
-        if (System.IO.File.Exists(file.FilePath))
+        try
         {
-            try
-            {
-                System.IO.File.Delete(file.FilePath);
-            }
-            catch (Exception ex)
-            {
-                Log.Warning(ex, "删除磁盘文件失败: {Path}", file.FilePath);
-                throw new InvalidOperationException($"删除磁盘文件失败：{ex.Message}", ex);
-            }
+            DeletePhysicalPath(file.FilePath);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "删除磁盘备份失败: {Path}", file.FilePath);
+            throw new InvalidOperationException($"删除磁盘备份失败：{ex.Message}", ex);
         }
 
         var deletedAt = DateTime.Now.ToString("O");
@@ -158,16 +157,15 @@ public partial class BackupFilesViewModel : ObservableObject
         var deletedAt = DateTime.Now.ToString("O");
         foreach (var file in toDelete)
         {
-            if (!BackupPathGuard.IsAllowedBackupFile(file.FilePath, allowedDirectories))
+            if (!BackupPathGuard.IsAllowedBackupPath(file.FilePath, allowedDirectories))
             {
-                failedDeletes.Add($"{file.FileName}: 文件路径不在允许的备份目录内");
+                failedDeletes.Add($"{file.FileName}: 路径不在允许的备份目录内");
                 continue;
             }
 
             try
             {
-                if (System.IO.File.Exists(file.FilePath))
-                    System.IO.File.Delete(file.FilePath);
+                DeletePhysicalPath(file.FilePath);
                 await _repo.UpdateStatusAsync(file.Id, "DELETED", deletedAt);
                 Log.Information("批量删除备份记录并标记为 DELETED: {FileName}", file.FileName);
             }
@@ -218,10 +216,24 @@ public partial class BackupFilesViewModel : ObservableObject
     [RelayCommand]
     private static Task OpenFolderAsync(BackupFile file)
     {
-        var dir = System.IO.Path.GetDirectoryName(file.FilePath);
-        if (dir != null && System.IO.Directory.Exists(dir))
+        var dir = System.IO.Directory.Exists(file.FilePath)
+            ? file.FilePath
+            : System.IO.Path.GetDirectoryName(file.FilePath);
+        if (!string.IsNullOrWhiteSpace(dir) && System.IO.Directory.Exists(dir))
             System.Diagnostics.Process.Start("explorer.exe", dir);
         return Task.CompletedTask;
+    }
+
+    private static void DeletePhysicalPath(string path)
+    {
+        if (System.IO.File.Exists(path))
+        {
+            System.IO.File.Delete(path);
+            return;
+        }
+
+        if (System.IO.Directory.Exists(path))
+            System.IO.Directory.Delete(path, recursive: true);
     }
 
     private async Task<HashSet<string>> GetAllowedBackupDirectoriesAsync()
@@ -232,7 +244,7 @@ public partial class BackupFilesViewModel : ObservableObject
             directories.Add(defaultBackupDir);
 
         var tasks = await _taskRepo.GetAllAsync();
-        foreach (var task in tasks.Where(task => task.TaskType is "BACKUP" or "BACKUP_CLEANUP"))
+        foreach (var task in tasks.Where(task => task.TaskType is "BACKUP" or "BACKUP_CLEANUP" or "DIRECTORY_SYNC"))
         {
             if (string.IsNullOrWhiteSpace(task.TaskConfig))
                 continue;

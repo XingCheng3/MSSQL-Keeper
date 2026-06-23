@@ -33,9 +33,9 @@ public partial class BackupFilesPage : Page
 
     private void PopulateDatabaseFilter()
     {
-        var databases = _vm.Files.Select(f => f.DatabaseName).Distinct().OrderBy(n => n).ToList();
+        var databases = _vm.Files.Select(f => f.SourceDisplay).Distinct().OrderBy(n => n).ToList();
         cmbDatabase.Items.Clear();
-        cmbDatabase.Items.Add(new ComboBoxItem { Content = "全部数据库", IsSelected = true });
+        cmbDatabase.Items.Add(new ComboBoxItem { Content = "全部来源", IsSelected = true });
         foreach (var db in databases)
         {
             cmbDatabase.Items.Add(new ComboBoxItem { Content = db, Tag = db });
@@ -138,6 +138,7 @@ public partial class BackupFilesPage : Page
     {
         if (_vm == null) return;
         _vm.FilterDatabase = (cmbDatabase.SelectedItem as ComboBoxItem)?.Tag as string;
+        _vm.FilterSourceType = (cmbSourceType.SelectedItem as ComboBoxItem)?.Tag as string;
         _vm.FilterStatus = (cmbStatus.SelectedItem as ComboBoxItem)?.Tag as string;
         _vm.FilterDateFrom = dpDateFrom.SelectedDate;
         _vm.FilterDateTo = dpDateTo.SelectedDate;
